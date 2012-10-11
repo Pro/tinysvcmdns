@@ -381,6 +381,7 @@ struct rr_entry *rr_create_srv(uint8_t *name, uint16_t port, uint8_t *target) {
 struct rr_entry *rr_create_ptr(uint8_t *name, struct rr_entry *d_rr) {
 	DECL_MALLOC_ZERO_STRUCT(rr, rr_entry);
 	FILL_RR_ENTRY(rr, name, RR_PTR);
+	rr->cache_flush = 0;	// PTRs shouldn't have their cache flush bit set
 	rr->data.PTR.entry = d_rr;
 	return rr;
 }
