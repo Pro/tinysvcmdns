@@ -306,6 +306,7 @@ static int process_mdns_pkt(struct mdnsd *svr, struct mdns_pkt *pkt, struct mdns
 static void main_loop(struct mdnsd *svr) {
 	fd_set sockfd_set;
 	int max_fd = svr->sockfd;
+	char notify_buf[2];	// buffer for reading of notify_pipe
 
 	void *pkt_buffer = malloc(PACKET_SIZE);
 
@@ -316,17 +317,15 @@ static void main_loop(struct mdnsd *svr) {
 	memset(mdns_reply, 0, sizeof(struct mdns_pkt));
 
 	while (! svr->stop_flag) {
-		struct timeval tv = {
-			.tv_sec =  0,
-			.tv_usec = 0,
-		};
-
 		FD_ZERO(&sockfd_set);
 		FD_SET(svr->sockfd, &sockfd_set);
 		FD_SET(svr->notify_pipe[0], &sockfd_set);
-		select(max_fd + 1, &sockfd_set, NULL, NULL, &tv);
+		select(max_fd + 1, &sockfd_set, NULL, NULL, NULL);
 
-		if (FD_ISSET(svr->sockfd, &sockfd_set)) {
+		if (FD_ISSET(svr->notify_pipe[0], &sockfd_set)) {
+			// flush the notify_pipe
+			read(svr->notify_pipe[0], &notify_buf, 1);
+		} else if (FD_ISSET(svr->sockfd, &sockfd_set)) {
 			struct sockaddr_in fromaddr;
 			socklen_t sockaddr_size = sizeof(struct sockaddr_in);
 
