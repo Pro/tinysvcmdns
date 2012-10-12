@@ -457,7 +457,7 @@ struct rr_group *rr_group_find(struct rr_group* g, uint8_t *name) {
 struct rr_entry *rr_entry_find(struct rr_list *rr_list, uint8_t *name, uint16_t type) {
 	struct rr_list *rr = rr_list;
 	for (; rr; rr = rr->next) {
-		if (rr->e->type == type) 
+		if (rr->e->type == type && cmp_nlabel(rr->e->name, name) == 0) 
 			return rr->e;
 	}
 	return NULL;
