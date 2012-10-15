@@ -31,6 +31,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define MALLOC_ZERO_STRUCT(x, type) \
 	x = malloc(sizeof(struct type)); \
@@ -131,6 +132,9 @@ struct rr_group {
 #define MDNS_FLAG_GET_RCODE(x)	(x & 0x0F)
 #define MDNS_FLAG_GET_OPCODE(x)	((x >> 11) & 0x0F)
 
+// gets the PTR target name, either from "name" member or "entry" member
+#define MDNS_RR_GET_PTR_NAME(rr)  (rr->data.PTR.name != NULL ? rr->data.PTR.name : rr->data.PTR.entry->name)
+
 struct mdns_pkt {
 	uint16_t id;	// transaction ID
 	uint16_t flags;
@@ -154,6 +158,7 @@ void mdns_pkt_destroy(struct mdns_pkt *p);
 void rr_group_destroy(struct rr_group *group);
 struct rr_group *rr_group_find(struct rr_group *g, uint8_t *name);
 struct rr_entry *rr_entry_find(struct rr_list *rr_list, uint8_t *name, uint16_t type);
+struct rr_entry *rr_entry_match(struct rr_list *rr_list, struct rr_entry *entry);
 void rr_group_add(struct rr_group **group, struct rr_entry *rr);
 
 int rr_list_count(struct rr_list *rr);
@@ -174,5 +179,10 @@ char *nlabel_to_str(const uint8_t *name);
 uint8_t *dup_label(const uint8_t *label);
 uint8_t *dup_nlabel(const uint8_t *n);
 uint8_t *join_nlabel(const uint8_t *n1, const uint8_t *n2);
+
+// compares 2 names
+static inline int cmp_nlabel(const uint8_t *L1, const uint8_t *L2) {
+	return strcmp((char *) L1, (char *) L2);
+}
 
 #endif /*!__MDNS_H__*/

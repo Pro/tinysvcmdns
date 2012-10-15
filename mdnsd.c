@@ -157,7 +157,6 @@ static ssize_t send_packet(int fd, const void *data, size_t len) {
 // type can be RR_ANY, which populates all entries EXCEPT RR_NSEC
 static int populate_answers(struct mdnsd *svr, struct rr_list **rr_head, uint8_t *name, enum rr_type type) {
 	int num_ans = 0;
-	struct rr_entry *rr;
 
 	// check if we have the records
 	pthread_mutex_lock(&svr->data_lock);
@@ -167,22 +166,18 @@ static int populate_answers(struct mdnsd *svr, struct rr_list **rr_head, uint8_t
 		return num_ans;
 	}
 
-	// include all records?
-	if (type == RR_ANY) {
-		struct rr_list *n = ans_grp->rr;
-		for (; n; n = n->next) {
-			// exclude NSEC
-			if (n->e->type == RR_NSEC)
-				continue;
+	// decide which records should go into answers
+	struct rr_list *n = ans_grp->rr;
+	for (; n; n = n->next) {
+		// exclude NSEC for RR_ANY
+		if (type == RR_ANY && n->e->type == RR_NSEC)
+			continue;
 
+		if (type == n->e->type && cmp_nlabel(name, n->e->name) == 0) {
 			num_ans += rr_list_append(rr_head, n->e);
 		}
-	} else {
-		// match record type
-		rr = rr_entry_find(ans_grp->rr, name, type);
-		if (rr) 
-			num_ans += rr_list_append(rr_head, rr);
 	}
+
 	pthread_mutex_unlock(&svr->data_lock);
 
 	return num_ans;
@@ -197,10 +192,7 @@ static void add_related_rr(struct mdnsd *svr, struct rr_list *list, struct mdns_
 			case RR_PTR:
 				// target host A, AAAA records
 				reply->num_add_rr += populate_answers(svr, &reply->rr_add, 
-										(ans->data.PTR.name ? 
-											ans->data.PTR.name : 
-											ans->data.PTR.entry->name), 
-										RR_ANY);
+										MDNS_RR_GET_PTR_NAME(ans), RR_ANY);
 				break;
 
 			case RR_SRV:
@@ -266,6 +258,8 @@ static int process_mdns_pkt(struct mdnsd *svr, struct mdns_pkt *pkt, struct mdns
 		struct rr_list *qnl = pkt->rr_qn;
 		for (i = 0; i < pkt->num_qn; i++, qnl = qnl->next) {
 			struct rr_entry *qn = qnl->e;
+			int num_ans_added = 0;
+
 			char *namestr = nlabel_to_str(qn->name);
 			DEBUG_PRINTF("qn #%d: type 0x%02x %s - ", i, qn->type, namestr);
 			free(namestr);
@@ -276,16 +270,35 @@ static int process_mdns_pkt(struct mdnsd *svr, struct mdns_pkt *pkt, struct mdns
 				continue;
 			}
 
-			// see if it is in the answers
-			if (rr_entry_find(pkt->rr_ans, qn->name, qn->type)) {
-				DEBUG_PRINTF("our record is already in their answers\n");
-				continue;
+			num_ans_added = populate_answers(svr, &reply->rr_ans, qn->name, qn->type);
+			reply->num_ans_rr += num_ans_added;
+
+			DEBUG_PRINTF("added %d answers\n", num_ans_added);
+		}
+
+		// remove our replies if they were already in their answers
+		struct rr_list *ans = NULL, *prev_ans = NULL;
+		for (ans = reply->rr_ans; ans; ) {
+			struct rr_list *next_ans = ans->next;
+
+			if (rr_entry_match(pkt->rr_ans, ans->e)) {
+				// check if list item is head
+				if (prev_ans == NULL)
+					reply->rr_ans = ans->next;
+				else
+					prev_ans->next = ans->next;
+				free(ans);
+
+				ans = prev_ans;
+
+				// adjust answer count
+				reply->num_ans_rr--;
 			}
 
-			reply->num_ans_rr += populate_answers(svr, &reply->rr_ans, qn->name, qn->type);
-
-			DEBUG_PRINTF("adding %d answers\n", reply->num_ans_rr);
+			prev_ans = ans;
+			ans = next_ans;
 		}
+
 
 		// see if we can match additional records for answers
 		add_related_rr(svr, reply->rr_ans, reply);

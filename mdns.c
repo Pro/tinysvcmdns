@@ -47,11 +47,6 @@ struct name_comp {
 
 // ----- label functions -----
 
-// compares 2 names
-static inline int cmp_nlabel(const uint8_t *L1, const uint8_t *L2) {
-	return strcmp((char *) L1, (char *) L2);
-}
-
 // duplicates a name
 inline uint8_t *dup_nlabel(const uint8_t *n) {
 	assert(n[0] <= 63);	// prevent mis-use
@@ -459,6 +454,23 @@ struct rr_entry *rr_entry_find(struct rr_list *rr_list, uint8_t *name, uint16_t 
 	for (; rr; rr = rr->next) {
 		if (rr->e->type == type && cmp_nlabel(rr->e->name, name) == 0) 
 			return rr->e;
+	}
+	return NULL;
+}
+
+// looks for a matching entry in rr_list
+// if entry is a PTR, we need to check if the PTR target also matches
+struct rr_entry *rr_entry_match(struct rr_list *rr_list, struct rr_entry *entry) {
+	struct rr_list *rr = rr_list;
+	for (; rr; rr = rr->next) {
+		if (rr->e->type == entry->type && cmp_nlabel(rr->e->name, entry->name) == 0) {
+			if (entry->type != RR_PTR) {
+				return rr->e;
+			} else if (cmp_nlabel(MDNS_RR_GET_PTR_NAME(entry), MDNS_RR_GET_PTR_NAME(rr->e)) == 0) {
+				// if it's a PTR, we need to make sure PTR target also matches
+				return rr->e;
+			}
+		}
 	}
 	return NULL;
 }
