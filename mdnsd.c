@@ -173,7 +173,7 @@ static int populate_answers(struct mdnsd *svr, struct rr_list **rr_head, uint8_t
 		if (type == RR_ANY && n->e->type == RR_NSEC)
 			continue;
 
-		if (type == n->e->type && cmp_nlabel(name, n->e->name) == 0) {
+		if ((type == n->e->type || type == RR_ANY) && cmp_nlabel(name, n->e->name) == 0) {
 			num_ans += rr_list_append(rr_head, n->e);
 		}
 	}
