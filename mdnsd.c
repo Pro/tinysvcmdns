@@ -280,8 +280,10 @@ static int process_mdns_pkt(struct mdnsd *svr, struct mdns_pkt *pkt, struct mdns
 		struct rr_list *ans = NULL, *prev_ans = NULL;
 		for (ans = reply->rr_ans; ans; ) {
 			struct rr_list *next_ans = ans->next;
+			struct rr_entry *known_ans = rr_entry_match(pkt->rr_ans, ans->e);
 
-			if (rr_entry_match(pkt->rr_ans, ans->e)) {
+			// discard answers that have at least half of the actual TTL
+			if (known_ans != NULL && known_ans->ttl >= ans->e->ttl / 2) {
 				char *namestr = nlabel_to_str(ans->e->name);
 				DEBUG_PRINTF("removing answer for %s\n", namestr);
 				free(namestr);
