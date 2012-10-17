@@ -246,6 +246,19 @@ static uint8_t *uncompress_nlabel(uint8_t *pkt_buf, size_t pkt_len, size_t off) 
 
 // ----- RR list & group functions -----
 
+const char *rr_get_type_name(enum rr_type type) {
+	switch (type) {
+		case RR_A:		return "A";
+		case RR_PTR:	return "PTR";
+		case RR_TXT:	return "TXT";
+		case RR_AAAA:	return "AAAA";
+		case RR_SRV:	return "SRV";
+		case RR_NSEC:	return "NSEC";
+		case RR_ANY:	return "ANY";
+	}
+	return NULL;
+}
+
 void rr_entry_destroy(struct rr_entry *rr) {
 	struct rr_data_txt *txt_rec;
 	assert(rr);

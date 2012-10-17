@@ -173,6 +173,8 @@ struct rr_entry *rr_create(uint8_t *name, enum rr_type type);
 void rr_set_nsec(struct rr_entry *rr_nsec, enum rr_type type);
 void rr_add_txt(struct rr_entry *rr_txt, const char *txt);
 
+const char *rr_get_type_name(enum rr_type type);
+
 uint8_t *create_label(const char *txt);
 uint8_t *create_nlabel(const char *name);
 char *nlabel_to_str(const uint8_t *name);

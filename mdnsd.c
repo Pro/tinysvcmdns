@@ -261,7 +261,7 @@ static int process_mdns_pkt(struct mdnsd *svr, struct mdns_pkt *pkt, struct mdns
 			int num_ans_added = 0;
 
 			char *namestr = nlabel_to_str(qn->name);
-			DEBUG_PRINTF("qn #%d: type 0x%02x %s - ", i, qn->type, namestr);
+			DEBUG_PRINTF("qn #%d: type %s (%02x) %s - ", i, rr_get_type_name(qn->type), qn->type, namestr);
 			free(namestr);
 
 			// check if it's a unicast query - we ignore those
@@ -282,6 +282,10 @@ static int process_mdns_pkt(struct mdnsd *svr, struct mdns_pkt *pkt, struct mdns
 			struct rr_list *next_ans = ans->next;
 
 			if (rr_entry_match(pkt->rr_ans, ans->e)) {
+				char *namestr = nlabel_to_str(ans->e->name);
+				DEBUG_PRINTF("removing answer for %s\n", namestr);
+				free(namestr);
+
 				// check if list item is head
 				if (prev_ans == NULL)
 					reply->rr_ans = ans->next;
@@ -354,6 +358,8 @@ static void main_loop(struct mdnsd *svr) {
 				if (process_mdns_pkt(svr, mdns, mdns_reply)) {
 					size_t replylen = mdns_encode_pkt(mdns_reply, pkt_buffer, PACKET_SIZE);
 					send_packet(svr->sockfd, pkt_buffer, replylen);
+				} else if (mdns->num_qn == 0) {
+					DEBUG_PRINTF("(no questions in packet)\n\n");
 				}
 
 				mdns_pkt_destroy(mdns);
