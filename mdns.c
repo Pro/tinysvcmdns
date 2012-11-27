@@ -575,6 +575,7 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 	uint8_t *name;
 	size_t rr_data_len = 0;
 	struct rr_data_txt *txt_rec;
+	int parse_error = 0;
 
 	assert(pkt != NULL);
 
@@ -601,24 +602,54 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 	// RR data
 	rr_data_len = ntohs( * (uint16_t *) p );
 	p += sizeof(uint16_t);
+
+	if (p + rr_data_len > e) {
+		DEBUG_PRINTF("rr_data_len goes beyond packet buffer: %lu > %lu\n", rr_data_len, e - p);
+		rr_entry_destroy(rr);
+		return 0;
+	}
+
 	e = p + rr_data_len;
 
 	// see if we can parse the RR data
 	switch (rr->type) {
 		case RR_A:
+			if (rr_data_len < sizeof(uint32_t)) {
+				DEBUG_PRINTF("invalid rr_data_len=%lu for A record\n", rr_data_len);
+				parse_error = 1;
+				break;
+			}
 			rr->data.A.addr = ntohl( * (uint32_t *) p );
 			p += sizeof(uint32_t);
 			break;
 
 		case RR_PTR:
 			rr->data.PTR.name = uncompress_nlabel(pkt_buf, pkt_len, p - pkt_buf);
+			if (rr->data.PTR.name == NULL) {
+				DEBUG_PRINTF("unable to parse/uncompress label for PTR name\n");
+				parse_error = 1;
+				break;
+			}
 			p += rr_data_len;
 			break;
 
 		case RR_TXT:
 			txt_rec = &rr->data.TXT;
+
+			// not supposed to happen, but we should handle it
+			if (rr_data_len == 0) {
+				DEBUG_PRINTF("WARN: rr_data_len for TXT is 0\n");
+				txt_rec->txt = create_label("");
+				break;
+			}
+
 			while (1) {
 				txt_rec->txt = copy_label(pkt_buf, pkt_len, p - pkt_buf);
+				if (txt_rec->txt == NULL) {
+					DEBUG_PRINTF("unable to copy label for TXT record\n");
+					parse_error = 1;
+					break;
+				}
 				p += txt_rec->txt[0] + 1;
 
 				if (p >= e) 
@@ -634,6 +665,12 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 		default:
 			// skip to end of RR data
 			p = e;
+	}
+
+	// if there was a parse error, destroy partial rr_entry
+	if (parse_error) {
+		rr_entry_destroy(rr);
+		return 0;
 	}
 
 	rr_list_append(&pkt->rr_ans, rr);
