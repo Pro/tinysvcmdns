@@ -7,6 +7,12 @@ CFLAGS += -Wall -pedantic -std=gnu99
 CFLAGS += -O2 -DNDEBUG
 LDLIBS = -lpthread
 
+ifneq ($(CROSS_COMPILE),)
+  CC = gcc
+  CC := $(CROSS_COMPILE)$(CC)
+  AR := $(CROSS_COMPILE)$(AR)
+endif
+
 BIN=testmdnsd
 
 LIBTINYSVCMDNS_OBJS = mdns.o mdnsd.o
