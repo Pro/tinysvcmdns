@@ -500,6 +500,32 @@ void rr_group_destroy(struct rr_group *group) {
 	}
 }
 
+uint8_t *mdns_write_u16(uint8_t *ptr, const uint16_t v) {
+	*ptr++ = (uint8_t) (v >> 8) & 0xFF;
+	*ptr++ = (uint8_t) (v >> 0) & 0xFF;
+	return ptr;
+}
+
+uint8_t *mdns_write_u32(uint8_t *ptr, const uint32_t v) {
+	*ptr++ = (uint8_t) (v >> 24) & 0xFF;
+	*ptr++ = (uint8_t) (v >> 16) & 0xFF;
+	*ptr++ = (uint8_t) (v >>  8) & 0xFF;
+	*ptr++ = (uint8_t) (v >>  0) & 0xFF;
+	return ptr;
+}
+
+uint16_t mdns_read_u16(const uint8_t *ptr) {
+	return  ((ptr[0] & 0xFF) << 8) | 
+			((ptr[1] & 0xFF) << 0);
+}
+
+uint32_t mdns_read_u32(const uint8_t *ptr) {
+	return  ((ptr[0] & 0xFF) << 24) | 
+			((ptr[1] & 0xFF) << 16) | 
+			((ptr[2] & 0xFF) <<  8) | 
+			((ptr[3] & 0xFF) <<  0);
+}
+
 // initialize the packet for reply
 // clears the packet of list structures but not its list items
 void mdns_init_reply(struct mdns_pkt *pkt, uint16_t id) {
@@ -553,11 +579,11 @@ static size_t mdns_parse_qn(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 	p += label_len(pkt_buf, pkt_len, off);
 	rr->name = name;
 
-	rr->type = ntohs( * (uint16_t *) p );
+	rr->type = mdns_read_u16(p);
 	p += sizeof(uint16_t);
 
 	rr->unicast_query = (*p & 0x80) == 0x80;
-	rr->rr_class = ntohs( * (uint16_t *) p) & ~0x80;
+	rr->rr_class = mdns_read_u16(p) & ~0x80;
 	p += sizeof(uint16_t);
 
 	rr_list_append(&pkt->rr_qn, rr);
@@ -589,18 +615,18 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 	p += label_len(pkt_buf, pkt_len, off);
 	rr->name = name;
 
-	rr->type = ntohs( * (uint16_t *) p );
+	rr->type = mdns_read_u16(p);
 	p += sizeof(uint16_t);
 
 	rr->cache_flush = (*p & 0x80) == 0x80;
-	rr->rr_class = ntohs( * (uint16_t *) p) & ~0x80;
+	rr->rr_class = mdns_read_u16(p) & ~0x80;
 	p += sizeof(uint16_t);
 
-	rr->ttl = ntohl( * (uint32_t *) p );
+	rr->ttl = mdns_read_u32(p);
 	p += sizeof(uint32_t);
 
 	// RR data
-	rr_data_len = ntohs( * (uint16_t *) p );
+	rr_data_len = mdns_read_u16(p);
 	p += sizeof(uint16_t);
 
 	if (p + rr_data_len > e) {
@@ -619,7 +645,7 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 				parse_error = 1;
 				break;
 			}
-			rr->data.A.addr = ntohl( * (uint32_t *) p );
+			rr->data.A.addr = ntohl(mdns_read_u32(p)); /* addr already in net order */
 			p += sizeof(uint32_t);
 			break;
 
@@ -680,7 +706,7 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 
 // parse a MDNS packet into an mdns_pkt struct
 struct mdns_pkt *mdns_parse_pkt(uint8_t *pkt_buf, size_t pkt_len) {
-	uint16_t *p = (uint16_t *) pkt_buf;
+	uint8_t *p = pkt_buf;
 	size_t off;
 	struct mdns_pkt *pkt;
 	int i;
@@ -691,14 +717,14 @@ struct mdns_pkt *mdns_parse_pkt(uint8_t *pkt_buf, size_t pkt_len) {
 	MALLOC_ZERO_STRUCT(pkt, mdns_pkt);
 
 	// parse header
-	pkt->id 			= ntohs(*p); p++;
-	pkt->flags 			= ntohs(*p); p++;
-	pkt->num_qn 		= ntohs(*p); p++;
-	pkt->num_ans_rr 	= ntohs(*p); p++;
-	pkt->num_auth_rr 	= ntohs(*p); p++;
-	pkt->num_add_rr 	= ntohs(*p); p++;
+	pkt->id 			= mdns_read_u16(p); p += sizeof(uint16_t);
+	pkt->flags 			= mdns_read_u16(p); p += sizeof(uint16_t);
+	pkt->num_qn 		= mdns_read_u16(p); p += sizeof(uint16_t);
+	pkt->num_ans_rr 	= mdns_read_u16(p); p += sizeof(uint16_t);
+	pkt->num_auth_rr 	= mdns_read_u16(p); p += sizeof(uint16_t);
+	pkt->num_add_rr 	= mdns_read_u16(p); p += sizeof(uint16_t);
 
-	off = (uint8_t *) p - pkt_buf;
+	off = p - pkt_buf;
 
 	// parse questions
 	for (i = 0; i < pkt->num_qn; i++) {
@@ -742,7 +768,7 @@ static size_t mdns_encode_name(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 			// find match for compression
 			for (c = comp; c; c = c->next) {
 				if (cmp_nlabel(name, c->label) == 0) {
-					*(uint16_t *) p = htons(0xC000 | (c->pos & ~0xC000));
+					mdns_write_u16(p, 0xC000 | (c->pos & ~0xC000));
 					return len + sizeof(uint16_t);
 				}
 
@@ -792,16 +818,13 @@ static size_t mdns_encode_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 	p += l;
 
 	// type
-	*(uint16_t *) p = htons(rr->type);
-	p += sizeof(uint16_t);
+	p = mdns_write_u16(p, rr->type);
 
 	// class & cache flush
-	*(uint16_t *) p = htons((rr->rr_class & ~0x8000) | (rr->cache_flush << 15));
-	p += sizeof(uint16_t);
+	p = mdns_write_u16(p, (rr->rr_class & ~0x8000) | (rr->cache_flush << 15));
 
 	// TTL
-	*(uint32_t *) p = htonl(rr->ttl);
-	p += sizeof(uint32_t);
+	p = mdns_write_u32(p, rr->ttl);
 	
 	// data length (filled in later)
 	p += sizeof(uint16_t);
@@ -811,8 +834,8 @@ static size_t mdns_encode_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 
 	switch (rr->type) {
 		case RR_A:
-			*(uint32_t *) p = (rr->data.A.addr);
-			p += sizeof(uint32_t);
+			/* htonl() needed coz addr already in net order */
+			p = mdns_write_u32(p, htonl(rr->data.A.addr));
 			break;
 
 		case RR_PTR:
@@ -832,14 +855,11 @@ static size_t mdns_encode_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 			break;
 
 		case RR_SRV:
-			*(uint16_t *) p = htons(rr->data.SRV.priority);
-			p += sizeof(uint16_t);
+			p = mdns_write_u16(p, rr->data.SRV.priority);
 			
-			*(uint16_t *) p = htons(rr->data.SRV.weight);
-			p += sizeof(uint16_t);
+			p = mdns_write_u16(p, rr->data.SRV.weight);
 
-			*(uint16_t *) p = htons(rr->data.SRV.port);
-			p += sizeof(uint16_t);
+			p = mdns_write_u16(p, rr->data.SRV.port);
 
 			p += mdns_encode_name(pkt_buf, pkt_len, p - pkt_buf, 
 					rr->data.SRV.target, comp);
@@ -866,7 +886,7 @@ static size_t mdns_encode_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 	l = p - p_data;
 
 	// fill in the length
-	*(uint16_t *) (p - l - sizeof(uint16_t)) = htons(l);
+	mdns_write_u16(p - l - sizeof(uint16_t), l);
 
 	return p - pkt_buf - off;
 }
@@ -875,7 +895,7 @@ static size_t mdns_encode_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 // returns the size of the entire MDNS packet
 size_t mdns_encode_pkt(struct mdns_pkt *answer, uint8_t *pkt_buf, size_t pkt_len) {
 	struct name_comp *comp;
-	uint16_t *p = (uint16_t *) pkt_buf;
+	uint8_t *p = pkt_buf;
 	//uint8_t *e = pkt_buf + pkt_len;
 	size_t off;
 	int i;
@@ -889,14 +909,14 @@ size_t mdns_encode_pkt(struct mdns_pkt *answer, uint8_t *pkt_buf, size_t pkt_len
 	// this is an Answer - number of qns should be zero
 	assert(answer->num_qn == 0);
 
-	*p++ = htons(answer->id);
-	*p++ = htons(answer->flags);
-	*p++ = htons(answer->num_qn);
-	*p++ = htons(answer->num_ans_rr);
-	*p++ = htons(answer->num_auth_rr);
-	*p++ = htons(answer->num_add_rr);
+	p = mdns_write_u16(p, answer->id);
+	p = mdns_write_u16(p, answer->flags);
+	p = mdns_write_u16(p, answer->num_qn);
+	p = mdns_write_u16(p, answer->num_ans_rr);
+	p = mdns_write_u16(p, answer->num_auth_rr);
+	p = mdns_write_u16(p, answer->num_add_rr);
 
-	off = (uint8_t *) p - pkt_buf;
+	off = p - pkt_buf;
 
 	// allocate list for name compression
 	comp = malloc(sizeof(struct name_comp));
