@@ -46,6 +46,14 @@
 #include <pthread.h>
 #include <syslog.h>
 
+/*
+ * Define a proper IP socket level if not already done.
+ * Required to compile on OS X
+ */
+#ifndef SOL_IP
+#define SOL_IP IPPROTO_IP
+#endif
+
 #include "mdns.h"
 #include "mdnsd.h"
 
@@ -443,6 +451,12 @@ void mdnsd_set_hostname(struct mdnsd *svr, const char *hostname, uint32_t ip) {
 	svr->hostname = create_nlabel(hostname);
 	rr_group_add(&svr->group, a_e);
 	rr_group_add(&svr->group, nsec_e);
+	pthread_mutex_unlock(&svr->data_lock);
+}
+
+void mdnsd_add_rr(struct mdnsd *svr, struct rr_entry *rr) {
+	pthread_mutex_lock(&svr->data_lock);
+	rr_group_add(&svr->group, rr);
 	pthread_mutex_unlock(&svr->data_lock);
 }
 
