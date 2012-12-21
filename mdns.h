@@ -32,6 +32,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <arpa/inet.h>
 
 #define MALLOC_ZERO_STRUCT(x, type) \
 	x = malloc(sizeof(struct type)); \
@@ -76,6 +77,10 @@ struct rr_data_a {
 	uint32_t addr;
 };
 
+struct rr_data_aaaa {
+	struct in6_addr *addr;
+};
+
 struct rr_entry {
 	uint8_t *name;
 
@@ -106,6 +111,7 @@ struct rr_entry {
 		struct rr_data_txt  TXT;
 		struct rr_data_ptr  PTR;
 		struct rr_data_a    A;
+		struct rr_data_aaaa AAAA;
 	} data;
 };
 
@@ -168,6 +174,7 @@ void rr_list_destroy(struct rr_list *rr, char destroy_items);
 
 struct rr_entry *rr_create_ptr(uint8_t *name, struct rr_entry *d_rr);
 struct rr_entry *rr_create_srv(uint8_t *name, uint16_t port, uint8_t *target);
+struct rr_entry *rr_create_aaaa(uint8_t *name, struct in6_addr *addr);
 struct rr_entry *rr_create_a(uint8_t *name, uint32_t addr);
 struct rr_entry *rr_create(uint8_t *name, enum rr_type type);
 void rr_set_nsec(struct rr_entry *rr_nsec, enum rr_type type);

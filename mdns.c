@@ -378,6 +378,13 @@ struct rr_entry *rr_create_a(uint8_t *name, uint32_t addr) {
 	return rr;
 }
 
+struct rr_entry *rr_create_aaaa(uint8_t *name, struct in6_addr *addr) {
+	DECL_MALLOC_ZERO_STRUCT(rr, rr_entry);
+	FILL_RR_ENTRY(rr, name, RR_AAAA);
+	rr->data.AAAA.addr = addr;
+	return rr;
+}
+
 struct rr_entry *rr_create_srv(uint8_t *name, uint16_t port, uint8_t *target) {
 	DECL_MALLOC_ZERO_STRUCT(rr, rr_entry);
 	FILL_RR_ENTRY(rr, name, RR_SRV);
@@ -649,6 +656,18 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 			p += sizeof(uint32_t);
 			break;
 
+		case RR_AAAA:
+			if (rr_data_len < sizeof(struct in6_addr)) {
+				DEBUG_PRINTF("invalid rr_data_len=%lu for AAAA record\n", rr_data_len);
+				parse_error = 1;
+				break;
+			}
+			rr->data.AAAA.addr = malloc(sizeof(struct in6_addr));
+			for (int i = 0; i < sizeof(struct in6_addr); i++) 
+				rr->data.AAAA.addr->s6_addr[i] = p[i];
+			p += sizeof(struct in6_addr);
+			break;
+
 		case RR_PTR:
 			rr->data.PTR.name = uncompress_nlabel(pkt_buf, pkt_len, p - pkt_buf);
 			if (rr->data.PTR.name == NULL) {
@@ -836,6 +855,11 @@ static size_t mdns_encode_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 		case RR_A:
 			/* htonl() needed coz addr already in net order */
 			p = mdns_write_u32(p, htonl(rr->data.A.addr));
+			break;
+
+		case RR_AAAA:
+			for (i = 0; i < sizeof(struct in6_addr); i++)
+				*p++ = rr->data.AAAA.addr->s6_addr[i];
 			break;
 
 		case RR_PTR:
