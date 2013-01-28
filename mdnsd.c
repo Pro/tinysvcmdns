@@ -399,6 +399,14 @@ int write_pipe(int s, char* buf, int len) {
 #endif
 }
 
+int close_pipe(int s) {
+#ifdef _WIN32
+	return closesocket(s);
+#else
+	return close(s);
+#endif
+}
+
 // main loop to receive, process and send out MDNS replies
 // also handles MDNS service announces
 static void main_loop(struct mdnsd *svr) {
@@ -497,11 +505,7 @@ static void main_loop(struct mdnsd *svr) {
 
 	free(pkt_buffer);
 
-#ifdef _WIN32
-	closesocket(svr->sockfd);
-#else
-	close(svr->sockfd);
-#endif
+	close_pipe(svr->sockfd);
 
 	svr->stop_flag = 2;
 }
@@ -657,13 +661,8 @@ void mdnsd_stop(struct mdnsd *s) {
 	while (s->stop_flag != 2)
 		select(0, NULL, NULL, NULL, &tv);
 
-#ifdef _WIN32
-	closesocket(s->notify_pipe[0]);
-	closesocket(s->notify_pipe[1]);
-#else
-	close(s->notify_pipe[0]);
-	close(s->notify_pipe[1]);
-#endif
+	close_pipe(s->notify_pipe[0]);
+	close_pipe(s->notify_pipe[1]);
 
 	pthread_mutex_destroy(&s->data_lock);
 	rr_group_destroy(s->group);
