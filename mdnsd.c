@@ -29,6 +29,8 @@
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
 #define LOG_ERR 3
 #else
 #include <sys/select.h>
@@ -38,6 +40,8 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <syslog.h>
+#include <pthread.h>
+#include <unistd.h>
 #endif
 
 #include <sys/types.h>
@@ -48,9 +52,30 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include <unistd.h>
 #include <assert.h>
-#include <pthread.h>
+
+#ifndef _WIN32
+#define os_mutex_init(lock) pthread_mutex_init(lock, NULL);
+#define os_mutex_lock(lock) pthread_mutex_lock(lock)
+#define os_mutex_unlock(lock) pthread_mutex_unlock(lock)
+#define os_mutex_destroy(lock) pthread_mutex_destroy(lock)
+#define os_mutex pthread_mutex_t
+#define os_prepare_thread() \
+		pthread_t tid; \
+		pthread_attr_t attr; \
+		pthread_attr_init(&attr); \
+		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+#define os_create_thread(fun, arg) pthread_create(&tid, &attr, (void *(*)(void *)) fun, (void *) arg)
+#else
+#define os_mutex_init(lock) InitializeCriticalSectionAndSpinCount(lock, 0x00000400)
+#define os_mutex_lock(lock) EnterCriticalSection(lock)
+#define os_mutex_unlock(lock) LeaveCriticalSection(lock)
+#define os_mutex_destroy(lock) DeleteCriticalSection(lock)
+#define os_mutex CRITICAL_SECTION
+#define os_prepare_thread()
+#define os_create_thread(fun, arg) _beginthread( fun, 0, arg )
+#endif
+
 
 /*
  * Define a proper IP socket level if not already done.
@@ -72,7 +97,7 @@
 		((uint8_t *) "\x09_services\x07_dns-sd\x04_udp\x05local")
 
 struct mdnsd {
-	pthread_mutex_t data_lock;
+	os_mutex data_lock;
 	int sockfd;
 	int notify_pipe[2];
 	int stop_flag;
@@ -154,7 +179,7 @@ static int create_recv_sock() {
 	return sd;
 }
 
-static ssize_t send_packet(int fd, const void *data, size_t len) {
+static size_t send_packet(int fd, const void *data, size_t len) {
 	static struct sockaddr_in toaddr;
 	if (toaddr.sin_family != AF_INET) {
 		memset(&toaddr, 0, sizeof(struct sockaddr_in));
@@ -166,17 +191,16 @@ static ssize_t send_packet(int fd, const void *data, size_t len) {
 	return sendto(fd, data, len, 0, (struct sockaddr *) &toaddr, sizeof(struct sockaddr_in));
 }
 
-
 // populate the specified list which matches the RR name and type
 // type can be RR_ANY, which populates all entries EXCEPT RR_NSEC
 static int populate_answers(struct mdnsd *svr, struct rr_list **rr_head, uint8_t *name, enum rr_type type) {
 	int num_ans = 0;
 
 	// check if we have the records
-	pthread_mutex_lock(&svr->data_lock);
+	os_mutex_lock(&svr->data_lock);
 	struct rr_group *ans_grp = rr_group_find(svr->group, name);
 	if (ans_grp == NULL) {
-		pthread_mutex_unlock(&svr->data_lock);
+		os_mutex_unlock(&svr->data_lock);
 		return num_ans;
 	}
 
@@ -192,7 +216,7 @@ static int populate_answers(struct mdnsd *svr, struct rr_list **rr_head, uint8_t
 		}
 	}
 
-	pthread_mutex_unlock(&svr->data_lock);
+	os_mutex_unlock(&svr->data_lock);
 
 	return num_ans;
 }
@@ -435,7 +459,7 @@ static void main_loop(struct mdnsd *svr) {
 			struct sockaddr_in fromaddr;
 			socklen_t sockaddr_size = sizeof(struct sockaddr_in);
 
-			ssize_t recvsize = recvfrom(svr->sockfd, pkt_buffer, PACKET_SIZE, 0, 
+			size_t recvsize = recvfrom(svr->sockfd, pkt_buffer, PACKET_SIZE, 0, 
 				(struct sockaddr *) &fromaddr, &sockaddr_size);
 			if (recvsize < 0) {
 				log_message(LOG_ERR, "recv(): %m");
@@ -460,10 +484,10 @@ static void main_loop(struct mdnsd *svr) {
 			struct rr_entry *ann_e = NULL;
 
 			// extract from head of list
-			pthread_mutex_lock(&svr->data_lock);
+			os_mutex_lock(&svr->data_lock);
 			if (svr->announce) 
 				ann_e = rr_list_remove(&svr->announce, svr->announce->e);
-			pthread_mutex_unlock(&svr->data_lock);
+			os_mutex_unlock(&svr->data_lock);
 
 			if (! ann_e)
 				break;
@@ -484,14 +508,14 @@ static void main_loop(struct mdnsd *svr) {
 	// main thread terminating. send out "goodbye packets" for services
 	mdns_init_reply(mdns_reply, 0);
 
-	pthread_mutex_lock(&svr->data_lock);
+	os_mutex_lock(&svr->data_lock);
 	struct rr_list *svc_le = svr->services;
 	for (; svc_le; svc_le = svc_le->next) {
 		// set TTL to zero
 		svc_le->e->ttl = 0;
 		mdns_reply->num_ans_rr += rr_list_append(&mdns_reply->rr_ans, svc_le->e);
 	}
-	pthread_mutex_unlock(&svr->data_lock);
+	os_mutex_unlock(&svr->data_lock);
 
 	// send out packet
 	if (mdns_reply->num_ans_rr > 0) {
@@ -526,17 +550,17 @@ void mdnsd_set_hostname(struct mdnsd *svr, const char *hostname, uint32_t ip) {
 	nsec_e = rr_create(create_nlabel(hostname), RR_NSEC);
 	rr_set_nsec(nsec_e, RR_A);
 
-	pthread_mutex_lock(&svr->data_lock);
+	os_mutex_lock(&svr->data_lock);
 	svr->hostname = create_nlabel(hostname);
 	rr_group_add(&svr->group, a_e);
 	rr_group_add(&svr->group, nsec_e);
-	pthread_mutex_unlock(&svr->data_lock);
+	os_mutex_unlock(&svr->data_lock);
 }
 
 void mdnsd_add_rr(struct mdnsd *svr, struct rr_entry *rr) {
-	pthread_mutex_lock(&svr->data_lock);
+	os_mutex_lock(&svr->data_lock);
 	rr_group_add(&svr->group, rr);
-	pthread_mutex_unlock(&svr->data_lock);
+	os_mutex_unlock(&svr->data_lock);
 }
 
 struct mdns_service *mdnsd_register_svc(struct mdnsd *svr, const char *instance_name, 
@@ -582,7 +606,7 @@ struct mdns_service *mdnsd_register_svc(struct mdnsd *svr, const char *instance_
 	bptr_e = rr_create_ptr(dup_nlabel(SERVICES_DNS_SD_NLABEL), ptr_e);
 
 	// modify lists here
-	pthread_mutex_lock(&svr->data_lock);
+	os_mutex_lock(&svr->data_lock);
 
 	if (txt_e)
 		rr_group_add(&svr->group, txt_e);
@@ -594,7 +618,7 @@ struct mdns_service *mdnsd_register_svc(struct mdnsd *svr, const char *instance_
 	rr_list_append(&svr->announce, ptr_e);
 	rr_list_append(&svr->services, ptr_e);
 
-	pthread_mutex_unlock(&svr->data_lock);
+	os_mutex_unlock(&svr->data_lock);
 
 	// don't free type_nlabel - it's with the PTR record
 	free(nlabel);
@@ -613,9 +637,6 @@ void mdns_service_destroy(struct mdns_service *srv) {
 }
 
 struct mdnsd *mdnsd_start() {
-	pthread_t tid;
-	pthread_attr_t attr;
-
 	struct mdnsd *server = malloc(sizeof(struct mdnsd));
 	memset(server, 0, sizeof(struct mdnsd));
 
@@ -632,14 +653,11 @@ struct mdnsd *mdnsd_start() {
 		return NULL;
 	}
 
-	pthread_mutex_init(&server->data_lock, NULL);
+	os_mutex_init(&server->data_lock);
 
-	// init thread
-	pthread_attr_init(&attr);
-	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-
-	if (pthread_create(&tid, &attr, (void *(*)(void *)) main_loop, (void *) server) != 0) {
-		pthread_mutex_destroy(&server->data_lock);
+	os_prepare_thread();
+	if (os_create_thread(main_loop, server) != 0) {
+		os_mutex_destroy(&server->data_lock);
 		free(server);
 		return NULL;
 	}
@@ -664,7 +682,7 @@ void mdnsd_stop(struct mdnsd *s) {
 	close_pipe(s->notify_pipe[0]);
 	close_pipe(s->notify_pipe[1]);
 
-	pthread_mutex_destroy(&s->data_lock);
+	os_mutex_destroy(&s->data_lock);
 	rr_group_destroy(s->group);
 	rr_list_destroy(s->announce, 0);
 	rr_list_destroy(s->services, 0);
