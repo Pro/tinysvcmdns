@@ -26,6 +26,13 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifdef _WIN32
+#include <winsock2.h>
+#include <in6addr.h>
+#include <ws2tcpip.h>
+#endif
+
+
 #include <stdio.h>
 #include "mdns.h"
 #include "mdnsd.h"
