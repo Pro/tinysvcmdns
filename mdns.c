@@ -26,19 +26,19 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifdef _WIN32
+#include <winsock2.h>
+#include <in6addr.h>
+#else
+#include <netinet/in.h>
+#endif
+
 #include "mdns.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-
-#ifdef _WIN32
-#include <winsock.h>
-#include <in6addr.h>
-#else
-#include <netinet/in.h>
-#endif
 
 
 #define DEFAULT_TTL		120
@@ -54,7 +54,7 @@ struct name_comp {
 // ----- label functions -----
 
 // duplicates a name
-inline uint8_t *dup_nlabel(const uint8_t *n) {
+uint8_t *dup_nlabel(const uint8_t *n) {
 	assert(n[0] <= 63);	// prevent mis-use
 	size_t len = strlen((const char *) n);
 	uint8_t *dup = malloc(sizeof(uint8_t)*len);
@@ -195,7 +195,7 @@ static uint8_t *copy_label(uint8_t *pkt_buf, size_t pkt_len, size_t off) {
 
 	if (off > pkt_len)
 		return NULL;
-	
+
 	len = (size_t)pkt_buf[off] + 1;
 	if (off + len > pkt_len) {
 		DEBUG_PRINTF("label length exceeds packet buffer\n");
@@ -275,7 +275,7 @@ static void rr_entry_destroy(struct rr_entry *rr) {
 	// check rr_type and free data elements
 	switch (rr->type) {
 		case RR_PTR:
-			if (rr->data.PTR.name) 
+			if (rr->data.PTR.name)
 				free(rr->data.PTR.name);
 			// don't free entry
 			break;
@@ -284,7 +284,7 @@ static void rr_entry_destroy(struct rr_entry *rr) {
 			txt_rec = &rr->data.TXT;
 			while (txt_rec) {
 				struct rr_data_txt *next = txt_rec->next;
-				if (txt_rec->txt) 
+				if (txt_rec->txt)
 					free(txt_rec->txt);
 
 				// only free() if it wasn't part of the struct
@@ -481,7 +481,7 @@ struct rr_group *rr_group_find(struct rr_group* g, uint8_t *name) {
 struct rr_entry *rr_entry_find(struct rr_list *rr_list, uint8_t *name, uint16_t type) {
 	struct rr_list *rr = rr_list;
 	for (; rr; rr = rr->next) {
-		if (rr->e->type == type && cmp_nlabel(rr->e->name, name) == 0) 
+		if (rr->e->type == type && cmp_nlabel(rr->e->name, name) == 0)
 			return rr->e;
 	}
 	return NULL;
@@ -538,7 +538,7 @@ static uint16_t mdns_read_u16(const uint8_t *ptr) {
 static uint32_t mdns_read_u32(const uint8_t *ptr) {
 	return  (uint32_t)(((ptr[0] & 0xFF) << 24) |
 			((ptr[1] & 0xFF) << 16) |
-			((ptr[2] & 0xFF) <<  8) | 
+			((ptr[2] & 0xFF) <<  8) |
 			((ptr[3] & 0xFF) <<  0));
 }
 
@@ -585,10 +585,10 @@ static size_t mdns_parse_qn(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 	const uint8_t *p = pkt_buf + off;
 	struct rr_entry *rr;
 	uint8_t *name;
-   
+
 	assert(pkt != NULL);
 
-	rr = malloc(sizeof(struct rr_entry)); 
+	rr = malloc(sizeof(struct rr_entry));
 	memset(rr, 0, sizeof(struct rr_entry));
 
 	name = uncompress_nlabel(pkt_buf, pkt_len, off);
@@ -603,13 +603,13 @@ static size_t mdns_parse_qn(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 	p += sizeof(uint16_t);
 
 	rr_list_append(&pkt->rr_qn, rr);
-	
+
 	return (size_t)(p - (pkt_buf + off));
 }
 
 // parse the MDNS RR section
 // stores the parsed data in the given mdns_pkt struct
-static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off, 
+static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 		struct mdns_pkt *pkt) {
 	const uint8_t *p = pkt_buf + off;
 	const uint8_t *e = pkt_buf + pkt_len;
@@ -624,7 +624,7 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 	if (off > pkt_len)
 		return 0;
 
-	rr = malloc(sizeof(struct rr_entry)); 
+	rr = malloc(sizeof(struct rr_entry));
 	memset(rr, 0, sizeof(struct rr_entry));
 
 	name = uncompress_nlabel(pkt_buf, pkt_len, off);
@@ -646,7 +646,7 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 	p += sizeof(uint16_t);
 
 	if (p + rr_data_len > e) {
-		DEBUG_PRINTF("rr_data_len goes beyond packet buffer: %lu > %lu\n", rr_data_len, e - p);
+		DEBUG_PRINTF("rr_data_len goes beyond packet buffer: %d > %d\n", (int)rr_data_len, (int)(e - p));
 		rr_entry_destroy(rr);
 		return 0;
 	}
@@ -657,7 +657,7 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 	switch (rr->type) {
 		case RR_A:
 			if (rr_data_len < sizeof(uint32_t)) {
-				DEBUG_PRINTF("invalid rr_data_len=%lu for A record\n", rr_data_len);
+				DEBUG_PRINTF("invalid rr_data_len=%d for A record\n", (int)rr_data_len);
 				parse_error = 1;
 				break;
 			}
@@ -667,7 +667,7 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 
 		case RR_AAAA:
 			if (rr_data_len < sizeof(struct in6_addr)) {
-				DEBUG_PRINTF("invalid rr_data_len=%lu for AAAA record\n", rr_data_len);
+				DEBUG_PRINTF("invalid rr_data_len=%d for AAAA record\n", (int)rr_data_len);
 				parse_error = 1;
 				break;
 			}
@@ -706,7 +706,7 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 				}
 				p += txt_rec->txt[0] + 1;
 
-				if (p >= e) 
+				if (p >= e)
 					break;
 
 				// allocate another record
@@ -728,7 +728,7 @@ static size_t mdns_parse_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 	}
 
 	rr_list_append(&pkt->rr_ans, rr);
-	
+
 	return (size_t)(p - (pkt_buf + off));
 }
 
@@ -739,7 +739,7 @@ struct mdns_pkt *mdns_parse_pkt(uint8_t *pkt_buf, size_t pkt_len) {
 	struct mdns_pkt *pkt;
 	int i;
 
-	if (pkt_len < 12) 
+	if (pkt_len < 12)
 		return NULL;
 
 	MALLOC_ZERO_STRUCT(pkt, mdns_pkt);
@@ -785,7 +785,7 @@ struct mdns_pkt *mdns_parse_pkt(uint8_t *pkt_buf, size_t pkt_len) {
 
 // encodes a name (label) into a packet using the name compression scheme
 // encoded names will be added to the compression list for subsequent use
-static size_t mdns_encode_name(uint8_t *pkt_buf, size_t pkt_len, size_t off, 
+static size_t mdns_encode_name(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 		uint8_t *name, struct name_comp *comp) {
 	struct name_comp *c, *c_tail = NULL;
 	uint8_t *p = pkt_buf + off;
@@ -928,7 +928,7 @@ static size_t mdns_encode_rr(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 
 // encodes a MDNS packet from the given mdns_pkt struct into a buffer
 // returns the size of the entire MDNS packet
-ssize_t mdns_encode_pkt(struct mdns_pkt *answer, uint8_t *pkt_buf, size_t pkt_len) {
+size_t mdns_encode_pkt(struct mdns_pkt *answer, uint8_t *pkt_buf, size_t pkt_len) {
 	struct name_comp *comp;
 	uint8_t *p = pkt_buf;
 	//uint8_t *e = pkt_buf + pkt_len;
@@ -939,7 +939,7 @@ ssize_t mdns_encode_pkt(struct mdns_pkt *answer, uint8_t *pkt_buf, size_t pkt_le
 	assert(pkt_len >= 12);
 
 	if (p == NULL)
-		return -1;
+		return 0;
 
 	// this is an Answer - number of qns should be zero
 	assert(answer->num_qn == 0);
@@ -956,7 +956,7 @@ ssize_t mdns_encode_pkt(struct mdns_pkt *answer, uint8_t *pkt_buf, size_t pkt_le
 	// allocate list for name compression
 	comp = malloc(sizeof(struct name_comp));
 	if (comp == NULL) 
-		return -1;
+		return 0;
 	memset(comp, 0, sizeof(struct name_comp));
 
 	// dummy entry
@@ -979,8 +979,16 @@ ssize_t mdns_encode_pkt(struct mdns_pkt *answer, uint8_t *pkt_buf, size_t pkt_le
 			off += l;
 
 			if (off >= pkt_len) {
+
+				// free name compression list
+				while (comp) {
+					struct name_comp *c = comp->next;
+					free(comp);
+					comp = c;
+				}
+
 				DEBUG_PRINTF("packet buffer too small\n");
-				return -1;
+				return 0;
 			}
 		}
 
@@ -993,6 +1001,6 @@ ssize_t mdns_encode_pkt(struct mdns_pkt *answer, uint8_t *pkt_buf, size_t pkt_le
 		comp = c;
 	}
 
-	return (ssize_t)off;
+	return off;
 }
 

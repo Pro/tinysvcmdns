@@ -30,31 +30,33 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
+#include <windows.h>
+#include <process.h>
 #define LOG_ERR 3
 #else
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-#include <syslog.h>
-#include <pthread.h>
-#include <unistd.h>
+	#include <sys/select.h>
+	#include <sys/socket.h>
+	#include <sys/ioctl.h>
+	#include <netinet/in.h>
+	#include <arpa/inet.h>
+	#include <net/if.h>
+	#include <syslog.h>
+	#include <pthread.h>
+	#include <unistd.h>
 
-#ifdef __STRICT_ANSI__
-// in strict ansi mode, the struct is not defined
-struct ip_mreq
-{
-	/* IP multicast address of group.  */
-	struct in_addr imr_multiaddr;
+	#if !defined __APPLE__
+		#ifdef __STRICT_ANSI__
+		// in strict ansi mode, the struct is not defined
+		struct ip_mreq
+		{
+			/* IP multicast address of group.  */
+			struct in_addr imr_multiaddr;
 
-	/* Local IP address of interface.  */
-	struct in_addr imr_interface;
-};
-#endif
-
+			/* Local IP address of interface.  */
+			struct in_addr imr_interface;
+		};
+		#endif
+	#endif
 #endif
 
 
@@ -68,6 +70,7 @@ struct ip_mreq
 #include <stdlib.h>
 #include <stdarg.h>
 #include <assert.h>
+#include <errno.h>
 
 #ifndef _WIN32
 #define os_mutex_init(lock) pthread_mutex_init(lock, NULL);
@@ -88,7 +91,7 @@ struct ip_mreq
 #define os_mutex_destroy(lock) DeleteCriticalSection(lock)
 #define os_mutex CRITICAL_SECTION
 #define os_prepare_thread()
-#define os_create_thread(fun, arg) _beginthread( fun, 0, arg )
+#define os_create_thread(fun, arg) _beginthread( (void (*)(void *)) fun, 0, arg )
 #endif
 
 
@@ -130,22 +133,12 @@ struct mdns_service {
 /////////////////////////////////
 
 
-static void log_message(int loglevel, char *fmt_str, ...) {
-	va_list ap;
-	char buf[2048];
-
-	va_start(ap, fmt_str);
-	vsnprintf(buf, 2047, fmt_str, ap);
-	va_end(ap);
-	buf[2047] = 0;
-
-	fprintf(stderr, "%s\n", buf);
-}
+#define log_message(loglevel, format, ...) fprintf (stderr, format, ##__VA_ARGS__)
 
 static int create_recv_sock(void) {
 	int sd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sd < 0) {
-		log_message(LOG_ERR, "recv socket(): %m");
+		log_message(LOG_ERR, "recv socket(): %s", strerror(errno));
 		return sd;
 	}
 
@@ -153,7 +146,7 @@ static int create_recv_sock(void) {
 
 	int on = 1;
 	if ((r = setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (char *) &on, sizeof(on))) < 0) {
-		log_message(LOG_ERR, "recv setsockopt(SO_REUSEADDR): %m");
+		log_message(LOG_ERR, "recv setsockopt(SO_REUSEADDR): %s", strerror(errno));
 		return r;
 	}
 
@@ -164,7 +157,7 @@ static int create_recv_sock(void) {
 	serveraddr.sin_port = htons(MDNS_PORT);
 	serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);	/* receive multicast */
 	if ((r = bind(sd, (struct sockaddr *)&serveraddr, sizeof(serveraddr))) < 0) {
-		log_message(LOG_ERR, "recv bind(): %m");
+		log_message(LOG_ERR, "recv bind(): %s", strerror(errno));
 	}
 
 	// add membership to receiving socket
@@ -173,20 +166,20 @@ static int create_recv_sock(void) {
 	mreq.imr_interface.s_addr = htonl(INADDR_ANY);
 	mreq.imr_multiaddr.s_addr = inet_addr(MDNS_ADDR);
 	if ((r = setsockopt(sd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *) &mreq, sizeof(mreq))) < 0) {
-		log_message(LOG_ERR, "recv setsockopt(IP_ADD_MEMBERSHIP): %m");
+		log_message(LOG_ERR, "recv setsockopt(IP_ADD_MEMBERSHIP): %s", strerror(errno));
 		return r;
 	}
 
 	// enable loopback in case someone else needs the data
 	if ((r = setsockopt(sd, IPPROTO_IP, IP_MULTICAST_LOOP, (char *) &on, sizeof(on))) < 0) {
-		log_message(LOG_ERR, "recv setsockopt(IP_MULTICAST_LOOP): %m");
+		log_message(LOG_ERR, "recv setsockopt(IP_MULTICAST_LOOP): %s", strerror(errno));
 		return r;
 	}
 
 
 #ifdef IP_PKTINFO
 	if ((r = setsockopt(sd, SOL_IP, IP_PKTINFO, (char *) &on, sizeof(on))) < 0) {
-		log_message(LOG_ERR, "recv setsockopt(IP_PKTINFO): %m");
+		log_message(LOG_ERR, "recv setsockopt(IP_PKTINFO): %s", strerror(errno));
 		return r;
 	}
 #endif
@@ -194,7 +187,7 @@ static int create_recv_sock(void) {
 	return sd;
 }
 
-static ssize_t send_packet(int fd, const void *data, size_t len) {
+static long int send_packet(int fd, const void *data, size_t len) {
 	static struct sockaddr_in toaddr;
 	if (toaddr.sin_family != AF_INET) {
 		memset(&toaddr, 0, sizeof(struct sockaddr_in));
@@ -292,8 +285,6 @@ static void announce_srv(struct mdnsd *svr, struct mdns_pkt *reply, uint8_t *nam
 // processes the incoming MDNS packet
 // returns >0 if processed, 0 otherwise
 static int process_mdns_pkt(struct mdnsd *svr, struct mdns_pkt *pkt, struct mdns_pkt *reply) {
-	int i;
-
 	assert(pkt != NULL);
 
 	// is it standard query?
@@ -309,7 +300,7 @@ static int process_mdns_pkt(struct mdnsd *svr, struct mdns_pkt *pkt, struct mdns
 
 		// loop through questions
 		struct rr_list *qnl = pkt->rr_qn;
-		for (i = 0; i < pkt->num_qn; i++, qnl = qnl->next) {
+		for (int i = 0; i < pkt->num_qn; i++, qnl = qnl->next) {
 			struct rr_entry *qn = qnl->e;
 			int num_ans_added = 0;
 
@@ -397,7 +388,7 @@ static int create_pipe(int handles[2]) {
 		closesocket(sock);
 		return -1;
 	}
-	if ((handles[1] = socket(PF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {
+	if ((handles[1] = socket(PF_INET, SOCK_STREAM, 0)) == (int)INVALID_SOCKET) {
 		closesocket(sock);
 		return -1;
 	}
@@ -405,9 +396,9 @@ static int create_pipe(int handles[2]) {
 		closesocket(sock);
 		return -1;
 	}
-	if ((handles[0] = accept(sock, (struct sockaddr*)&serv_addr, &len)) == INVALID_SOCKET) {
+	if ((handles[0] = accept(sock, (struct sockaddr*)&serv_addr, &len)) == (int)INVALID_SOCKET) {
 		closesocket((SOCKET)handles[1]);
-		handles[1] = INVALID_SOCKET;
+		handles[1] = (int)INVALID_SOCKET;
 		closesocket(sock);
 		return -1;
 	}
@@ -418,7 +409,7 @@ static int create_pipe(int handles[2]) {
 #endif
 }
 
-static ssize_t read_pipe(int s, char* buf, size_t len) {
+static long int read_pipe(int s, char* buf, size_t len) {
 #ifdef _WIN32
 	int ret = recv(s, buf, len, 0);
 	if (ret < 0 && WSAGetLastError() == WSAECONNRESET) {
@@ -430,7 +421,7 @@ static ssize_t read_pipe(int s, char* buf, size_t len) {
 #endif
 }
 
-static ssize_t write_pipe(int s, char* buf, size_t len) {
+static long int write_pipe(int s, char* buf, size_t len) {
 #ifdef _WIN32
 	return send(s, buf, len, 0);
 #else
@@ -463,32 +454,32 @@ static void main_loop(struct mdnsd *svr) {
 
 	while (! svr->stop_flag) {
 		FD_ZERO(&sockfd_set);
-		FD_SET(svr->sockfd, &sockfd_set);
-		FD_SET(svr->notify_pipe[0], &sockfd_set);
+		FD_SET((unsigned int) svr->sockfd, &sockfd_set);
+		FD_SET((unsigned int) svr->notify_pipe[0], &sockfd_set);
 		select(max_fd + 1, &sockfd_set, NULL, NULL, NULL);
 
-		if (FD_ISSET(svr->notify_pipe[0], &sockfd_set)) {
+		if (FD_ISSET((unsigned int) svr->notify_pipe[0], &sockfd_set)) {
 			// flush the notify_pipe
 			read_pipe(svr->notify_pipe[0], (char*)&notify_buf, 1);
-		} else if (FD_ISSET(svr->sockfd, &sockfd_set)) {
+		} else if (FD_ISSET((unsigned int) svr->sockfd, &sockfd_set)) {
 			struct sockaddr_in fromaddr;
 			socklen_t sockaddr_size = sizeof(struct sockaddr_in);
 
-			ssize_t recvsize = recvfrom(svr->sockfd, pkt_buffer, PACKET_SIZE, 0,
+			long int recvsize = recvfrom(svr->sockfd, pkt_buffer, PACKET_SIZE, 0,
 				(struct sockaddr *) &fromaddr, &sockaddr_size);
 			if (recvsize < 0) {
-				log_message(LOG_ERR, "recv(): %m");
+				log_message(LOG_ERR, "recv(): %s", strerror(errno));
 			}
 
-			DEBUG_PRINTF("data from=%s size=%ld\n", inet_ntoa(fromaddr.sin_addr), (long) recvsize);
+			DEBUG_PRINTF("data from=%s size=%ld\n", inet_ntoa(fromaddr.sin_addr), recvsize);
 			struct mdns_pkt *mdns = mdns_parse_pkt(pkt_buffer, (size_t)recvsize);
 			if (mdns != NULL) {
 				if (process_mdns_pkt(svr, mdns, mdns_reply)) {
-					ssize_t replylen = mdns_encode_pkt(mdns_reply, pkt_buffer, PACKET_SIZE);
-					if (replylen < 0)
+					size_t replylen = mdns_encode_pkt(mdns_reply, pkt_buffer, PACKET_SIZE);
+					if (replylen == 0)
 						log_message(LOG_ERR, "mdns_encode_pkt: empty package");
 					else
-						send_packet(svr->sockfd, pkt_buffer, (size_t)replylen);
+						send_packet(svr->sockfd, pkt_buffer, replylen);
 				} else if (mdns->num_qn == 0) {
 					DEBUG_PRINTF("(no questions in packet)\n\n");
 				}
@@ -517,11 +508,11 @@ static void main_loop(struct mdnsd *svr) {
 			announce_srv(svr, mdns_reply, ann_e->name);
 
 			if (mdns_reply->num_ans_rr > 0) {
-				ssize_t replylen = mdns_encode_pkt(mdns_reply, pkt_buffer, PACKET_SIZE);
-				if (replylen < 0)
+				size_t replylen = mdns_encode_pkt(mdns_reply, pkt_buffer, PACKET_SIZE);
+				if (replylen == 0)
 					log_message(LOG_ERR, "mdns_encode_pkt: empty package");
 				else
-					send_packet(svr->sockfd, pkt_buffer, (size_t)replylen);
+					send_packet(svr->sockfd, pkt_buffer, replylen);
 			}
 		}
 	}
@@ -540,11 +531,11 @@ static void main_loop(struct mdnsd *svr) {
 
 	// send out packet
 	if (mdns_reply->num_ans_rr > 0) {
-		ssize_t replylen = mdns_encode_pkt(mdns_reply, pkt_buffer, PACKET_SIZE);
-		if (replylen < 0)
+		size_t replylen = mdns_encode_pkt(mdns_reply, pkt_buffer, PACKET_SIZE);
+		if (replylen == 0)
 			log_message(LOG_ERR, "mdns_encode_pkt: empty package");
 		else
-			send_packet(svr->sockfd, pkt_buffer, (size_t)replylen);
+			send_packet(svr->sockfd, pkt_buffer, replylen);
 	}
 
 	// destroy packet
@@ -665,7 +656,7 @@ struct mdnsd *mdnsd_start(void) {
 	memset(server, 0, sizeof(struct mdnsd));
 
 	if (create_pipe(server->notify_pipe) != 0) {
-		log_message(LOG_ERR, "pipe(): %m\n");
+		log_message(LOG_ERR, "pipe(): %s\n", strerror(errno));
 		free(server);
 		return NULL;
 	}

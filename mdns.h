@@ -33,10 +33,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "mdns_common.h"
+#include "mdns_config.h"
 
 #ifdef _WIN32
 #include <winsock.h>
+#include <sys/types.h>
 #else
 #include <arpa/inet.h>
 #endif
@@ -56,9 +57,13 @@
 
 
 struct rr_data_srv {
+	// cppcheck-suppress unusedStructMember
 	uint16_t priority;
+	// cppcheck-suppress unusedStructMember
 	uint16_t weight;
+	// cppcheck-suppress unusedStructMember
 	uint16_t port;
+	// cppcheck-suppress unusedStructMember
 	uint8_t *target;	// host
 };
 
@@ -72,15 +77,18 @@ struct rr_data_nsec {
 
 	// NSEC occupies the 47th bit, 5 bytes
 	//uint8_t bitmap_len;	// = 5
+	// cppcheck-suppress unusedStructMember
 	uint8_t bitmap[5];	// network order: first byte contains LSB
 };
 
 struct rr_data_ptr {
+	// cppcheck-suppress unusedStructMember
 	uint8_t *name;		// NULL if entry is to be used
 	struct rr_entry *entry;
 };
 
 struct rr_data_a {
+	// cppcheck-suppress unusedStructMember
 	uint32_t addr;
 };
 
@@ -165,7 +173,7 @@ struct mdns_pkt {
 MDNS_EXPORT struct mdns_pkt *mdns_parse_pkt(uint8_t *pkt_buf, size_t pkt_len);
 
 MDNS_EXPORT void mdns_init_reply(struct mdns_pkt *pkt, uint16_t id);
-MDNS_EXPORT ssize_t mdns_encode_pkt(struct mdns_pkt *answer, uint8_t *pkt_buf, size_t pkt_len);
+MDNS_EXPORT size_t mdns_encode_pkt(struct mdns_pkt *answer, uint8_t *pkt_buf, size_t pkt_len);
 
 void MDNS_EXPORT mdns_pkt_destroy(struct mdns_pkt *p);
 void MDNS_EXPORT rr_group_destroy(struct rr_group *group);
@@ -197,7 +205,7 @@ uint8_t MDNS_EXPORT *dup_nlabel(const uint8_t *n);
 uint8_t MDNS_EXPORT *join_nlabel(const uint8_t *n1, const uint8_t *n2);
 
 // compares 2 names
-static inline int cmp_nlabel(const uint8_t *L1, const uint8_t *L2) {
+static MDNS_INLINE int cmp_nlabel(const uint8_t *L1, const uint8_t *L2) {
 	return strcmp((const char *) L1, (const char *) L2);
 }
 

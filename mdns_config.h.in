@@ -5,9 +5,20 @@
 #ifndef MDNS_MDNS_COMMON_H
 #define MDNS_MDNS_COMMON_H
 
+#ifndef _XOPEN_SOURCE
+# define _XOPEN_SOURCE 500
+#endif
+#ifndef _DEFAULT_SOURCE
+# define _DEFAULT_SOURCE
+#endif
+
 /**
  * Function Export
  * --------------- */
+/* On Win32: Define UA_DYNAMIC_LINKING and UA_DYNAMIC_LINKING_EXPORT in order to
+   export symbols for a DLL. Define UA_DYNAMIC_LINKING only to import symbols
+   from a DLL.*/
+#cmakedefine MDNS_DYNAMIC_LINKING
 #ifdef _WIN32
 # ifdef MDNS_DYNAMIC_LINKING
 #  ifdef __GNUC__
@@ -28,6 +39,15 @@
 # else
 #  define MDNS_EXPORT
 # endif
+#endif
+
+/**
+ * Inline Functions
+ * ---------------- */
+#ifdef _MSC_VER
+# define MDNS_INLINE __inline
+#else
+# define MDNS_INLINE inline
 #endif
 
 #endif //MDNS_MDNS_COMMON_H

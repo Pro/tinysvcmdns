@@ -1,5 +1,11 @@
 tinysvcmdns
 ============
+
+[![Ohloh Project Status](https://www.ohloh.net/p/tinysvcmdns/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/tinysvcmdns)
+[![Build Status](https://travis-ci.org/Pro/tinysvcmdns.png?branch=master)](https://travis-ci.org/Pro/tinysvcmdns)
+[![Windows Build Status](https://ci.appveyor.com/api/projects/status/gv4lros88uubrkwd?svg=true)](https://ci.appveyor.com/project/Pro/tinysvcmdns)
+[![Coverage Status](https://coveralls.io/repos/github/Pro/tinysvcmdns/badge.svg?branch=master)](https://coveralls.io/github/Pro/tinysvcmdns?branch=master)
+
 tinysvcmdns is a tiny MDNS responder implementation for publishing services.
 
 This implementation is only concerned with publishing services, without a 

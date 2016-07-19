@@ -30,7 +30,7 @@
 #define __MDNSD_H__
 
 #include <stdint.h>
-#include "mdns_common.h"
+#include "mdns_config.h.in"
 
 struct mdnsd;
 struct mdns_service;

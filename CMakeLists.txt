@@ -1,7 +1,6 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 2.8)
 
 project(mdns)
-
 
 if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
   # Compiler
@@ -15,9 +14,22 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
   endif()
 endif()
 
+# Building shared libs (dll, so)
+set(MDNS_DYNAMIC_LINKING OFF)
+if(BUILD_SHARED_LIBS)
+  set(MDNS_DYNAMIC_LINKING ON)
+endif()
+
+configure_file("mdns_config.h.in" "${PROJECT_BINARY_DIR}/mdns_config.h")
+include_directories(${PROJECT_BINARY_DIR})
+
 set(LIBRARY_FILES mdns.h mdns.c mdnsd.h mdnsd.c)
 
 add_library(tinysvcmdns SHARED ${LIBRARY_FILES})
+if(WIN32)
+  target_link_libraries(tinysvcmdns wsock32 ws2_32)
+endif()
+
 add_executable(${PROJECT_NAME} testmdnsd.c)
 
 target_link_libraries(${PROJECT_NAME} tinysvcmdns)
