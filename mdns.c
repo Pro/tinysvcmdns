@@ -57,8 +57,9 @@ struct name_comp {
 uint8_t *dup_nlabel(const uint8_t *n) {
 	assert(n[0] <= 63);	// prevent mis-use
 	size_t len = strlen((const char *) n);
-	uint8_t *dup = malloc(sizeof(uint8_t)*len);
+	uint8_t *dup = malloc(sizeof(uint8_t)*(len+1));
 	memcpy(dup, n, sizeof(uint8_t)*len);
+	dup[len] = '\0';
 	return dup;
 }
 
@@ -154,6 +155,8 @@ uint8_t *create_label(const char *txt) {
 }
 
 // creates a uncompressed name label given a DNS name like "apple.b.com"
+// see http://www.tcpipguide.com/free/t_DNSNameNotationandMessageCompressionTechnique.htm
+// apple.b.com -> [5]apple[1]b[3]com
 // free() after use
 uint8_t *create_nlabel(const char *name) {
 	char *label;
@@ -167,7 +170,7 @@ uint8_t *create_nlabel(const char *name) {
 	if (label == NULL)
 		return NULL;
 
-	strncpy((char *) label + 1, name, len);
+	strncpy(label + 1, name, len);
 	label[len + 1] = '\0';
 
 	p = label;
