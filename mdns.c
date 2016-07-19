@@ -799,7 +799,7 @@ static size_t mdns_encode_name(uint8_t *pkt_buf, size_t pkt_len, size_t off,
 			// find match for compression
 			for (c = comp; c; c = c->next) {
 				if (cmp_nlabel(name, c->label) == 0) {
-					mdns_write_u16(p, (0xC000 | ((uint16_t)c->pos & ~0xC000)));
+					mdns_write_u16(p, (uint16_t)(0xC000 | ((uint16_t)c->pos & ~0xC000)));
 					return len + sizeof(uint16_t);
 				}
 
