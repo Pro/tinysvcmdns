@@ -26,6 +26,8 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "mdns_config.h"
+
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -36,39 +38,17 @@
 #else
 	#include <sys/select.h>
 	#include <sys/socket.h>
-	#include <sys/ioctl.h>
 	#include <netinet/in.h>
 	#include <arpa/inet.h>
-	#include <net/if.h>
 	#include <syslog.h>
 	#include <pthread.h>
 	#include <unistd.h>
-
-	#if !defined __APPLE__
-		#ifdef __STRICT_ANSI__
-		// in strict ansi mode, the struct is not defined
-		struct ip_mreq
-		{
-			/* IP multicast address of group.  */
-			struct in_addr imr_multiaddr;
-
-			/* Local IP address of interface.  */
-			struct in_addr imr_interface;
-		};
-		#endif
-	#endif
 #endif
 
 
-
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <signal.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <assert.h>
 #include <errno.h>
 

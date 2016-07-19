@@ -29,8 +29,9 @@
 #ifndef __MDNSD_H__
 #define __MDNSD_H__
 
-#include <stdint.h>
 #include "mdns_config.h.in"
+
+#include <stdint.h>
 
 struct mdnsd;
 struct mdns_service;

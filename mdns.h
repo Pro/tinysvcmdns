@@ -29,11 +29,12 @@
 #ifndef __MDNS_H__
 #define __MDNS_H__
 
+#include "mdns_config.h"
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "mdns_config.h"
 
 #ifdef _WIN32
 #include <winsock.h>

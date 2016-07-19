@@ -26,6 +26,8 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "mdns_config.h"
+
 #ifdef _WIN32
 #include <winsock2.h>
 #include <in6addr.h>
@@ -34,10 +36,7 @@
 #endif
 
 #include "mdns.h"
-#include <stdint.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include <assert.h>
 
 
