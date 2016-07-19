@@ -33,6 +33,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "mdns_common.h"
+
 #ifdef _WIN32
 #include <winsock.h>
 #else
@@ -160,43 +162,43 @@ struct mdns_pkt {
 	struct rr_list *rr_add;		// additional RRs
 };
 
-struct mdns_pkt *mdns_parse_pkt(uint8_t *pkt_buf, size_t pkt_len);
+MDNS_EXPORT struct mdns_pkt *mdns_parse_pkt(uint8_t *pkt_buf, size_t pkt_len);
 
-void mdns_init_reply(struct mdns_pkt *pkt, uint16_t id);
-size_t mdns_encode_pkt(struct mdns_pkt *answer, uint8_t *pkt_buf, size_t pkt_len);
+MDNS_EXPORT void mdns_init_reply(struct mdns_pkt *pkt, uint16_t id);
+MDNS_EXPORT ssize_t mdns_encode_pkt(struct mdns_pkt *answer, uint8_t *pkt_buf, size_t pkt_len);
 
-void mdns_pkt_destroy(struct mdns_pkt *p);
-void rr_group_destroy(struct rr_group *group);
-struct rr_group *rr_group_find(struct rr_group *g, uint8_t *name);
-struct rr_entry *rr_entry_find(struct rr_list *rr_list, uint8_t *name, uint16_t type);
-struct rr_entry *rr_entry_match(struct rr_list *rr_list, struct rr_entry *entry);
-void rr_group_add(struct rr_group **group, struct rr_entry *rr);
+void MDNS_EXPORT mdns_pkt_destroy(struct mdns_pkt *p);
+void MDNS_EXPORT rr_group_destroy(struct rr_group *group);
+MDNS_EXPORT struct rr_group* rr_group_find(struct rr_group *g, uint8_t *name);
+MDNS_EXPORT struct rr_entry* rr_entry_find(struct rr_list *rr_list, uint8_t *name, uint16_t type);
+MDNS_EXPORT struct rr_entry* rr_entry_match(struct rr_list *rr_list, struct rr_entry *entry);
+void MDNS_EXPORT rr_group_add(struct rr_group **group, struct rr_entry *rr);
 
-int rr_list_count(struct rr_list *rr);
-int rr_list_append(struct rr_list **rr_head, struct rr_entry *rr);
-struct rr_entry *rr_list_remove(struct rr_list **rr_head, struct rr_entry *rr);
-void rr_list_destroy(struct rr_list *rr, char destroy_items);
+size_t MDNS_EXPORT rr_list_count(struct rr_list *rr);
+uint16_t MDNS_EXPORT rr_list_append(struct rr_list **rr_head, struct rr_entry *rr);
+struct rr_entry* rr_list_remove(struct rr_list **rr_head, struct rr_entry *rr);
+void MDNS_EXPORT rr_list_destroy(struct rr_list *rr, char destroy_items);
 
-struct rr_entry *rr_create_ptr(uint8_t *name, struct rr_entry *d_rr);
-struct rr_entry *rr_create_srv(uint8_t *name, uint16_t port, uint8_t *target);
-struct rr_entry *rr_create_aaaa(uint8_t *name, struct in6_addr *addr);
-struct rr_entry *rr_create_a(uint8_t *name, uint32_t addr);
-struct rr_entry *rr_create(uint8_t *name, enum rr_type type);
-void rr_set_nsec(struct rr_entry *rr_nsec, enum rr_type type);
-void rr_add_txt(struct rr_entry *rr_txt, const char *txt);
+MDNS_EXPORT struct rr_entry* rr_create_ptr(uint8_t *name, struct rr_entry *d_rr);
+MDNS_EXPORT struct rr_entry* rr_create_srv(uint8_t *name, uint16_t port, uint8_t *target);
+MDNS_EXPORT struct rr_entry* rr_create_aaaa(uint8_t *name, struct in6_addr *addr);
+MDNS_EXPORT struct rr_entry* rr_create_a(uint8_t *name, uint32_t addr);
+MDNS_EXPORT struct rr_entry* rr_create(uint8_t *name, enum rr_type type);
+void MDNS_EXPORT rr_set_nsec(struct rr_entry *rr_nsec, enum rr_type type);
+void MDNS_EXPORT rr_add_txt(struct rr_entry *rr_txt, const char *txt);
 
-const char *rr_get_type_name(enum rr_type type);
+MDNS_EXPORT const char* rr_get_type_name(enum rr_type type);
 
-uint8_t *create_label(const char *txt);
-uint8_t *create_nlabel(const char *name);
-char *nlabel_to_str(const uint8_t *name);
-uint8_t *dup_label(const uint8_t *label);
-uint8_t *dup_nlabel(const uint8_t *n);
-uint8_t *join_nlabel(const uint8_t *n1, const uint8_t *n2);
+uint8_t MDNS_EXPORT *create_label(const char *txt);
+uint8_t MDNS_EXPORT *create_nlabel(const char *name);
+char MDNS_EXPORT *nlabel_to_str(const uint8_t *name);
+uint8_t MDNS_EXPORT *dup_label(const uint8_t *label);
+uint8_t MDNS_EXPORT *dup_nlabel(const uint8_t *n);
+uint8_t MDNS_EXPORT *join_nlabel(const uint8_t *n1, const uint8_t *n2);
 
 // compares 2 names
 static inline int cmp_nlabel(const uint8_t *L1, const uint8_t *L2) {
-	return strcmp((char *) L1, (char *) L2);
+	return strcmp((const char *) L1, (const char *) L2);
 }
 
 #endif /*!__MDNS_H__*/

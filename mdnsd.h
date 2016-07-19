@@ -30,29 +30,30 @@
 #define __MDNSD_H__
 
 #include <stdint.h>
+#include "mdns_common.h"
 
 struct mdnsd;
 struct mdns_service;
 
 // starts a MDNS responder instance
 // returns NULL if unsuccessful
-struct mdnsd *mdnsd_start();
+MDNS_EXPORT struct mdnsd *mdnsd_start(void);
 
 // stops the given MDNS responder instance
-void mdnsd_stop(struct mdnsd *s);
+void MDNS_EXPORT mdnsd_stop(struct mdnsd *s);
 
 // sets the hostname for the given MDNS responder instance
-void mdnsd_set_hostname(struct mdnsd *svr, const char *hostname, uint32_t ip);
+void MDNS_EXPORT mdnsd_set_hostname(struct mdnsd *svr, const char *hostname, uint32_t ip);
 
 // adds an additional RR
-void mdnsd_add_rr(struct mdnsd *svr, struct rr_entry *rr);
+void MDNS_EXPORT mdnsd_add_rr(struct mdnsd *svr, struct rr_entry *rr);
 
 // registers a service with the MDNS responder instance
-struct mdns_service *mdnsd_register_svc(struct mdnsd *svr, const char *instance_name, 
+MDNS_EXPORT struct mdns_service *mdnsd_register_svc(struct mdnsd *svr, const char *instance_name,
 		const char *type, uint16_t port, const char *hostname, const char *txt[]);
 
 // destroys the mdns_service struct returned by mdnsd_register_svc()
-void mdns_service_destroy(struct mdns_service *srv);
+void MDNS_EXPORT mdns_service_destroy(struct mdns_service *srv);
 
 
 #endif/*!__MDNSD_H__*/

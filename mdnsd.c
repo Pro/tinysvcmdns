@@ -42,7 +42,22 @@
 #include <syslog.h>
 #include <pthread.h>
 #include <unistd.h>
+
+#ifdef __STRICT_ANSI__
+// in strict ansi mode, the struct is not defined
+struct ip_mreq
+{
+	/* IP multicast address of group.  */
+	struct in_addr imr_multiaddr;
+
+	/* Local IP address of interface.  */
+	struct in_addr imr_interface;
+};
 #endif
+
+#endif
+
+
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -127,7 +142,7 @@ static void log_message(int loglevel, char *fmt_str, ...) {
 	fprintf(stderr, "%s\n", buf);
 }
 
-static int create_recv_sock() {
+static int create_recv_sock(void) {
 	int sd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sd < 0) {
 		log_message(LOG_ERR, "recv socket(): %m");
@@ -179,7 +194,7 @@ static int create_recv_sock() {
 	return sd;
 }
 
-static size_t send_packet(int fd, const void *data, size_t len) {
+static ssize_t send_packet(int fd, const void *data, size_t len) {
 	static struct sockaddr_in toaddr;
 	if (toaddr.sin_family != AF_INET) {
 		memset(&toaddr, 0, sizeof(struct sockaddr_in));
@@ -193,8 +208,8 @@ static size_t send_packet(int fd, const void *data, size_t len) {
 
 // populate the specified list which matches the RR name and type
 // type can be RR_ANY, which populates all entries EXCEPT RR_NSEC
-static int populate_answers(struct mdnsd *svr, struct rr_list **rr_head, uint8_t *name, enum rr_type type) {
-	int num_ans = 0;
+static uint16_t populate_answers(struct mdnsd *svr, struct rr_list **rr_head, uint8_t *name, enum rr_type type) {
+	uint16_t num_ans = 0;
 
 	// check if we have the records
 	os_mutex_lock(&svr->data_lock);
@@ -212,7 +227,7 @@ static int populate_answers(struct mdnsd *svr, struct rr_list **rr_head, uint8_t
 			continue;
 
 		if ((type == n->e->type || type == RR_ANY) && cmp_nlabel(name, n->e->name) == 0) {
-			num_ans += rr_list_append(rr_head, n->e);
+			num_ans = (uint16_t)(num_ans + rr_list_append(rr_head, n->e));
 		}
 	}
 
@@ -229,25 +244,25 @@ static void add_related_rr(struct mdnsd *svr, struct rr_list *list, struct mdns_
 		switch (ans->type) {
 			case RR_PTR:
 				// target host A, AAAA records
-				reply->num_add_rr += populate_answers(svr, &reply->rr_add, 
-										MDNS_RR_GET_PTR_NAME(ans), RR_ANY);
+				reply->num_add_rr = (uint16_t)(reply->num_add_rr + populate_answers(svr, &reply->rr_add,
+										MDNS_RR_GET_PTR_NAME(ans), RR_ANY));
 				break;
 
 			case RR_SRV:
 				// target host A, AAAA records
-				reply->num_add_rr += populate_answers(svr, &reply->rr_add, 
-										ans->data.SRV.target, RR_ANY);
+				reply->num_add_rr = (uint16_t)(reply->num_add_rr + populate_answers(svr, &reply->rr_add,
+										ans->data.SRV.target, RR_ANY));
 
 				// perhaps TXT records of the same name?
 				// if we use RR_ANY, we risk pulling in the same RR_SRV
-				reply->num_add_rr += populate_answers(svr, &reply->rr_add, 
-										ans->name, RR_TXT);
+				reply->num_add_rr = (uint16_t)(reply->num_add_rr + populate_answers(svr, &reply->rr_add,
+										ans->name, RR_TXT));
 				break;
 
 			case RR_A:
 			case RR_AAAA:
-				reply->num_add_rr += populate_answers(svr, &reply->rr_add, 
-										ans->name, RR_NSEC);
+				reply->num_add_rr = (uint16_t)(reply->num_add_rr + populate_answers(svr, &reply->rr_add,
+										ans->name, RR_NSEC));
 				break;
 
 			default:
@@ -261,11 +276,11 @@ static void add_related_rr(struct mdnsd *svr, struct rr_list *list, struct mdns_
 static void announce_srv(struct mdnsd *svr, struct mdns_pkt *reply, uint8_t *name) {
 	mdns_init_reply(reply, 0);
 
-	reply->num_ans_rr += populate_answers(svr, &reply->rr_ans, name, RR_PTR);
+	reply->num_ans_rr = (uint16_t)(reply->num_ans_rr + populate_answers(svr, &reply->rr_ans, name, RR_PTR));
 	
 	// remember to add the services dns-sd PTR too
-	reply->num_ans_rr += populate_answers(svr, &reply->rr_ans, 
-								SERVICES_DNS_SD_NLABEL, RR_PTR);
+	reply->num_ans_rr = (uint16_t)(reply->num_ans_rr + populate_answers(svr, &reply->rr_ans,
+								SERVICES_DNS_SD_NLABEL, RR_PTR));
 
 	// see if we can match additional records for answers
 	add_related_rr(svr, reply->rr_ans, reply);
@@ -309,7 +324,7 @@ static int process_mdns_pkt(struct mdnsd *svr, struct mdns_pkt *pkt, struct mdns
 			}
 
 			num_ans_added = populate_answers(svr, &reply->rr_ans, qn->name, qn->type);
-			reply->num_ans_rr += num_ans_added;
+			reply->num_ans_rr = (uint16_t)(reply->num_ans_rr + num_ans_added);
 
 			DEBUG_PRINTF("added %d answers\n", num_ans_added);
 		}
@@ -358,7 +373,7 @@ static int process_mdns_pkt(struct mdnsd *svr, struct mdns_pkt *pkt, struct mdns
 	return 0;
 }
 
-int create_pipe(int handles[2]) {
+static int create_pipe(int handles[2]) {
 #ifdef _WIN32
 	SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock == INVALID_SOCKET) {
@@ -403,7 +418,7 @@ int create_pipe(int handles[2]) {
 #endif
 }
 
-int read_pipe(int s, char* buf, int len) {
+static ssize_t read_pipe(int s, char* buf, size_t len) {
 #ifdef _WIN32
 	int ret = recv(s, buf, len, 0);
 	if (ret < 0 && WSAGetLastError() == WSAECONNRESET) {
@@ -415,7 +430,7 @@ int read_pipe(int s, char* buf, int len) {
 #endif
 }
 
-int write_pipe(int s, char* buf, int len) {
+static ssize_t write_pipe(int s, char* buf, size_t len) {
 #ifdef _WIN32
 	return send(s, buf, len, 0);
 #else
@@ -423,7 +438,7 @@ int write_pipe(int s, char* buf, int len) {
 #endif
 }
 
-int close_pipe(int s) {
+static int close_pipe(int s) {
 #ifdef _WIN32
 	return closesocket(s);
 #else
@@ -459,18 +474,21 @@ static void main_loop(struct mdnsd *svr) {
 			struct sockaddr_in fromaddr;
 			socklen_t sockaddr_size = sizeof(struct sockaddr_in);
 
-			size_t recvsize = recvfrom(svr->sockfd, pkt_buffer, PACKET_SIZE, 0, 
+			ssize_t recvsize = recvfrom(svr->sockfd, pkt_buffer, PACKET_SIZE, 0,
 				(struct sockaddr *) &fromaddr, &sockaddr_size);
 			if (recvsize < 0) {
 				log_message(LOG_ERR, "recv(): %m");
 			}
 
 			DEBUG_PRINTF("data from=%s size=%ld\n", inet_ntoa(fromaddr.sin_addr), (long) recvsize);
-			struct mdns_pkt *mdns = mdns_parse_pkt(pkt_buffer, recvsize);
+			struct mdns_pkt *mdns = mdns_parse_pkt(pkt_buffer, (size_t)recvsize);
 			if (mdns != NULL) {
 				if (process_mdns_pkt(svr, mdns, mdns_reply)) {
-					size_t replylen = mdns_encode_pkt(mdns_reply, pkt_buffer, PACKET_SIZE);
-					send_packet(svr->sockfd, pkt_buffer, replylen);
+					ssize_t replylen = mdns_encode_pkt(mdns_reply, pkt_buffer, PACKET_SIZE);
+					if (replylen < 0)
+						log_message(LOG_ERR, "mdns_encode_pkt: empty package");
+					else
+						send_packet(svr->sockfd, pkt_buffer, (size_t)replylen);
 				} else if (mdns->num_qn == 0) {
 					DEBUG_PRINTF("(no questions in packet)\n\n");
 				}
@@ -499,8 +517,11 @@ static void main_loop(struct mdnsd *svr) {
 			announce_srv(svr, mdns_reply, ann_e->name);
 
 			if (mdns_reply->num_ans_rr > 0) {
-				size_t replylen = mdns_encode_pkt(mdns_reply, pkt_buffer, PACKET_SIZE);
-				send_packet(svr->sockfd, pkt_buffer, replylen);
+				ssize_t replylen = mdns_encode_pkt(mdns_reply, pkt_buffer, PACKET_SIZE);
+				if (replylen < 0)
+					log_message(LOG_ERR, "mdns_encode_pkt: empty package");
+				else
+					send_packet(svr->sockfd, pkt_buffer, (size_t)replylen);
 			}
 		}
 	}
@@ -513,14 +534,17 @@ static void main_loop(struct mdnsd *svr) {
 	for (; svc_le; svc_le = svc_le->next) {
 		// set TTL to zero
 		svc_le->e->ttl = 0;
-		mdns_reply->num_ans_rr += rr_list_append(&mdns_reply->rr_ans, svc_le->e);
+		mdns_reply->num_ans_rr = (uint16_t)(mdns_reply->num_ans_rr+rr_list_append(&mdns_reply->rr_ans, svc_le->e));
 	}
 	os_mutex_unlock(&svr->data_lock);
 
 	// send out packet
 	if (mdns_reply->num_ans_rr > 0) {
-		size_t replylen = mdns_encode_pkt(mdns_reply, pkt_buffer, PACKET_SIZE);
-		send_packet(svr->sockfd, pkt_buffer, replylen);
+		ssize_t replylen = mdns_encode_pkt(mdns_reply, pkt_buffer, PACKET_SIZE);
+		if (replylen < 0)
+			log_message(LOG_ERR, "mdns_encode_pkt: empty package");
+		else
+			send_packet(svr->sockfd, pkt_buffer, (size_t)replylen);
 	}
 
 	// destroy packet
@@ -636,7 +660,7 @@ void mdns_service_destroy(struct mdns_service *srv) {
 	free(srv);
 }
 
-struct mdnsd *mdnsd_start() {
+struct mdnsd *mdnsd_start(void) {
 	struct mdnsd *server = malloc(sizeof(struct mdnsd));
 	memset(server, 0, sizeof(struct mdnsd));
 
