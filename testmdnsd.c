@@ -26,23 +26,13 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifdef _WIN32
-#include <winsock2.h>
-#include <in6addr.h>
-#include <ws2tcpip.h>
-#else
-#include <sys/socket.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#endif
-
 #include <stdio.h>
 #include "mdns.h"
 #include "mdnsd.h"
 
 int main(int argc, char *argv[]) {
 	// create host entries
-	char *hostname = "some-random-host.local";
+	char *hostname = "my_host.local";
 
 	struct mdnsd *svr = mdnsd_start();
 	if (svr == NULL) {
@@ -53,13 +43,15 @@ int main(int argc, char *argv[]) {
 	printf("mdnsd_start OK. press ENTER to add hostname & service\n");
 	getchar();
 
-	mdnsd_set_hostname(svr, hostname, inet_addr("192.168.0.29"));
+	mdnsd_set_hostname(svr, hostname, inet_addr("10.100.0.1"));
 
+	// Add all alternative IP addresses for this host
 	struct rr_entry *a2_e = NULL;
-	a2_e = rr_create_a(create_nlabel(hostname), inet_addr("192.168.0.31"));
+	a2_e = rr_create_a(create_nlabel(hostname), inet_addr("192.168.0.10"));
 	mdnsd_add_rr(svr, a2_e);
 
 	#ifndef __STRICT_ANSI__
+	// add alternative IPv6 address
 	struct rr_entry *aaaa_e = NULL;
 
 	struct addrinfo hints;

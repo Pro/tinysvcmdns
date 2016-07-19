@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 
-project(mdns)
+project(mdns C)
+set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 
 if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
   # Compiler
@@ -13,6 +14,20 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
   endif()
 endif()
+
+
+
+option(MDNS_BUILD_UNIT_TESTS "Build the unit tests" OFF)
+
+option(MDNS_ENABLE_COVERAGE "Enable gcov coverage" OFF)
+if(MDNS_ENABLE_COVERAGE)
+  set(CMAKE_BUILD_TYPE DEBUG)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
+endif()
+
+
 
 # Building shared libs (dll, so)
 set(MDNS_DYNAMIC_LINKING OFF)
@@ -38,4 +53,10 @@ if(WIN32)
   target_link_libraries(${PROJECT_NAME} wsock32 ws2_32)
 else()
   target_link_libraries(${PROJECT_NAME} pthread)
+endif()
+
+
+if(MDNS_BUILD_UNIT_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
 endif()

@@ -63,8 +63,8 @@ else
     #this run inclides full examples and methodcalls
     echo "Debug build and unit tests (64 bit)"
     mkdir -p build && cd build
-    cmake -DCMAKE_BUILD_TYPE=Debug ..
-    make -j
+    cmake -DCMAKE_BUILD_TYPE=Debug -DMDNS_BUILD_UNIT_TESTS=ON -DMDNS_ENABLE_COVERAGE=ON ..
+    make -j && make test ARGS="-V"
     # only run coveralls on main repo, otherwise it fails uploading the files
     echo "-> Current repo: ${TRAVIS_REPO_SLUG}"
     if ([ "$CC" = "gcc-4.8" ] || [ "$CC" = "gcc" ]) && ([ "${TRAVIS_REPO_SLUG}" = "Pro/tinysvcmdns" ]); then
