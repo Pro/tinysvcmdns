@@ -31,17 +31,9 @@
 
 #include "mdns_config.h"
 
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
-
-
-#ifdef _WIN32
-#include <winsock.h>
-#include <sys/types.h>
-#else
-#include <arpa/inet.h>
-#endif
+#include <stdlib.h>
+#include <stdint.h>
 
 #define MALLOC_ZERO_STRUCT(x, type) \
 	x = malloc(sizeof(struct type)); \

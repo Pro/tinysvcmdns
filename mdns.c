@@ -29,10 +29,14 @@
 #include "mdns_config.h"
 
 #ifdef _WIN32
+# ifdef SLIST_ENTRY
+#  undef SLIST_ENTRY /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
+# endif
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #include <in6addr.h>
 #else
-#include <netinet/in.h>
+# include <arpa/inet.h>
 #endif
 
 #include "mdns.h"

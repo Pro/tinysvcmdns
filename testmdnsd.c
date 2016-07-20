@@ -30,6 +30,8 @@
 #include <winsock2.h>
 #include <in6addr.h>
 #include <ws2tcpip.h>
+#else
+#include <arpa/inet.h>
 #endif
 
 
