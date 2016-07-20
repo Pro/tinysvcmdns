@@ -28,6 +28,7 @@
 
 #include "mdns_config.h"
 
+
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -43,20 +44,20 @@
 	#include <syslog.h>
 	#include <pthread.h>
 	#include <unistd.h>
+#endif
 
-	#if !defined __APPLE__ && !defined _DEFAULT_SOURCE && defined __STRICT_ANSI__
-		// in strict ansi mode, the struct is not defined
-		struct ip_mreq
-		{
-			/* IP multicast address of group.  */
-			struct in_addr imr_multiaddr;
+#if !defined __APPLE__  && !defined _WIN32
+// in strict ansi mode, the struct is not defined
+struct ip_mreq_custom
+{
+	/* IP multicast address of group.  */
+	struct in_addr imr_multiaddr;
 
-			/* Local IP address of interface.  */
-			struct in_addr imr_interface;
-		};
-	#endif
-
-
+	/* Local IP address of interface.  */
+	struct in_addr imr_interface;
+};
+#else
+#define ip_mreq_custom ip_mreq
 #endif
 
 
@@ -155,8 +156,8 @@ static int create_recv_sock(void) {
 	}
 
 	// add membership to receiving socket
-	struct ip_mreq mreq;
-	memset(&mreq, 0, sizeof(struct ip_mreq));
+	struct ip_mreq_custom mreq;
+	memset(&mreq, 0, sizeof(struct ip_mreq_custom));
 	mreq.imr_interface.s_addr = htonl(INADDR_ANY);
 	mreq.imr_multiaddr.s_addr = inet_addr(MDNS_ADDR);
 	if ((r = setsockopt(sd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *) &mreq, sizeof(mreq))) < 0) {

@@ -12,6 +12,11 @@
 # define _DEFAULT_SOURCE 1
 #endif
 
+#if defined __APPLE__
+// required for ip_mreq
+#define _DARWIN_C_SOURCE 1
+#endif
+
 /**
  * Function Export
  * --------------- */
