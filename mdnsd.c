@@ -43,6 +43,20 @@
 	#include <syslog.h>
 	#include <pthread.h>
 	#include <unistd.h>
+
+	#if !defined __APPLE__ && !defined _DEFAULT_SOURCE && defined __STRICT_ANSI__
+		// in strict ansi mode, the struct is not defined
+		struct ip_mreq
+		{
+			/* IP multicast address of group.  */
+			struct in_addr imr_multiaddr;
+
+			/* Local IP address of interface.  */
+			struct in_addr imr_interface;
+		};
+	#endif
+
+
 #endif
 
 
