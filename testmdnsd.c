@@ -40,6 +40,13 @@
 #include "mdnsd.h"
 
 int main(int argc, char *argv[]) {
+#ifdef _WIN32
+	WORD wVersionRequested;
+	wVersionRequested = MAKEWORD(2, 2);
+	WSADATA wsaData;
+	WSAStartup(wVersionRequested, &wsaData);
+#endif
+
 	// create host entries
 	char *hostname = "my_host.local";
 
@@ -94,6 +101,10 @@ int main(int argc, char *argv[]) {
 	getchar();
 
 	mdnsd_stop(svr);
+
+#ifdef _WIN32
+	WSACleanup();
+#endif
 
 	return 0;
 }
