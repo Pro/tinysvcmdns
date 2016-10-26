@@ -29,7 +29,7 @@
 #ifndef __MDNSD_H__
 #define __MDNSD_H__
 
-#include "mdns_config.h.in"
+#include "mdns_config.h"
 
 #include <stdint.h>
 
