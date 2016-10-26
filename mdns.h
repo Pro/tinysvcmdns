@@ -35,6 +35,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define MALLOC_ZERO_STRUCT(x, type) \
 	x = malloc(sizeof(struct type)); \
 	memset(x, 0, sizeof(struct type));
@@ -201,5 +205,9 @@ uint8_t MDNS_EXPORT *join_nlabel(const uint8_t *n1, const uint8_t *n2);
 static MDNS_INLINE int cmp_nlabel(const uint8_t *L1, const uint8_t *L2) {
 	return strcmp((const char *) L1, (const char *) L2);
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /*!__MDNS_H__*/
