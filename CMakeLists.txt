@@ -42,6 +42,9 @@ include_directories(${PROJECT_BINARY_DIR})
 set(LIBRARY_FILES mdns.h mdns.c mdnsd.h mdnsd.c)
 
 add_library(tinysvcmdns ${LIBRARY_FILES})
+target_include_directories(tinysvcmdns PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
 if(WIN32)
   target_link_libraries(tinysvcmdns wsock32 ws2_32)
 endif()
