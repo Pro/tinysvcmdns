@@ -157,6 +157,24 @@ uint8_t *create_label(const char *txt) {
 	return s;
 }
 
+// creates a label suitable for use in a TXT entry
+// such labels are not subject to the 63 bytes restriction.
+// free() after use
+static uint8_t *create_txt_label(const char *txt) {
+	size_t len;
+	uint8_t *s;
+
+	assert(txt != NULL);
+	len = strlen(txt);
+
+	s = malloc(len + 2);
+	s[0] = (uint8_t)len;
+	strncpy((char *) s + 1, txt, len);
+	s[len + 1] = '\0';
+
+	return s;
+}
+
 // creates a uncompressed name label given a DNS name like "apple.b.com"
 // see http://www.tcpipguide.com/free/t_DNSNameNotationandMessageCompressionTechnique.htm
 // apple.b.com -> [5]apple[1]b[3]com
@@ -423,7 +441,7 @@ struct rr_entry *rr_create(uint8_t *name, enum rr_type type) {
 }
 
 void rr_set_nsec(struct rr_entry *rr_nsec, enum rr_type type) {
-	assert(rr_nsec->type = RR_NSEC);
+	assert(rr_nsec->type == RR_NSEC);
 	assert((type / 8) < sizeof(rr_nsec->data.NSEC.bitmap));
 
 	rr_nsec->data.NSEC.bitmap[ type / 8 ] = (uint8_t)(1 << (7 - (type % 8)));
@@ -448,7 +466,7 @@ void rr_add_txt(struct rr_entry *rr_txt, const char *txt) {
 	txt_rec->next = malloc(sizeof(struct rr_data_txt));
 
 	txt_rec = txt_rec->next;
-	txt_rec->txt = create_label(txt);
+	txt_rec->txt = create_txt_label(txt);
 	txt_rec->next = NULL;
 }
 

@@ -20,12 +20,12 @@
 /**
  * Function Export
  * --------------- */
-/* On Win32: Define UA_DYNAMIC_LINKING and UA_DYNAMIC_LINKING_EXPORT in order to
-   export symbols for a DLL. Define UA_DYNAMIC_LINKING only to import symbols
+/* On Win32: Define MDNS_DYNAMIC_LINKING and MDNS_DYNAMIC_LINKING_EXPORT in order to
+   export symbols for a DLL. Define MDNS_DYNAMIC_LINKING only to import symbols
    from a DLL.*/
 #cmakedefine MDNS_DYNAMIC_LINKING
-#ifdef _WIN32
-# ifdef MDNS_DYNAMIC_LINKING
+#if defined(_WIN32) && defined(MDNS_DYNAMIC_LINKING)
+# ifdef MDNS_DYNAMIC_LINKING_EXPORT
 #  ifdef __GNUC__
 #   define MDNS_EXPORT __attribute__ ((dllexport))
 #  else
@@ -33,7 +33,7 @@
 #  endif
 # else
 #  ifdef __GNUC__
-#   define MDNS_EXPORT __attribute__ ((dllexport))
+#   define MDNS_EXPORT __attribute__ ((dllimport))
 #  else
 #   define MDNS_EXPORT __declspec(dllimport)
 #  endif

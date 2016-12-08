@@ -29,9 +29,13 @@
 #ifndef __MDNSD_H__
 #define __MDNSD_H__
 
-#include "mdns_config.h.in"
+#include "mdns_config.h"
 
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct mdnsd;
 struct mdns_service;
@@ -51,10 +55,13 @@ void MDNS_EXPORT mdnsd_add_rr(struct mdnsd *svr, struct rr_entry *rr);
 
 // registers a service with the MDNS responder instance
 MDNS_EXPORT struct mdns_service *mdnsd_register_svc(struct mdnsd *svr, const char *instance_name,
-		const char *type, uint16_t port, const char *hostname, const char *txt[]);
+	const char *type, uint16_t port, const char *hostname, const char *txt[]);
 
 // destroys the mdns_service struct returned by mdnsd_register_svc()
 void MDNS_EXPORT mdns_service_destroy(struct mdns_service *srv);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif/*!__MDNSD_H__*/

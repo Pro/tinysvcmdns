@@ -33,6 +33,7 @@ endif()
 set(MDNS_DYNAMIC_LINKING OFF)
 if(BUILD_SHARED_LIBS)
   set(MDNS_DYNAMIC_LINKING ON)
+  add_definitions(-DMDNS_DYNAMIC_LINKING_EXPORT)
 endif()
 
 configure_file("mdns_config.h.in" "${PROJECT_BINARY_DIR}/mdns_config.h")
@@ -40,7 +41,10 @@ include_directories(${PROJECT_BINARY_DIR})
 
 set(LIBRARY_FILES mdns.h mdns.c mdnsd.h mdnsd.c)
 
-add_library(tinysvcmdns SHARED ${LIBRARY_FILES})
+add_library(tinysvcmdns ${LIBRARY_FILES})
+target_include_directories(tinysvcmdns PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
 if(WIN32)
   target_link_libraries(tinysvcmdns wsock32 ws2_32)
 endif()
